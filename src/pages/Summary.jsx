@@ -4,7 +4,10 @@ import { Printer, PieChart } from 'lucide-react';
 import { useReactToPrint } from 'react-to-print';
 
 export default function Summary() {
-  const { shops, sales, tenants, payments, loading } = useSupabase();
+  const shops = useSupabase('shops') || [];
+  const sales = useSupabase('sales') || [];
+  const tenants = useSupabase('tenants') || [];
+  const payments = useSupabase('payments') || [];
   const printRef = useRef(null);
 
   const handlePrint = useReactToPrint({
@@ -74,7 +77,7 @@ export default function Summary() {
     });
   }, [shops, sales, tenants, payments]);
 
-  if (loading) {
+  if (!shops.length && !sales.length && !tenants.length) {
     return <div style={{ padding: '2rem' }}>Loading summary data...</div>;
   }
 
