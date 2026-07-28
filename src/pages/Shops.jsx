@@ -1,0 +1,430 @@
+import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { useSupabase } from '../hooks/useSupabase';
+import { db } from '../db';
+import { supabase } from '../supabaseClient';
+import { Plus, X, Layers, ChevronDown, ChevronRight, Store, Trash2 } from 'lucide-react';
+
+export default function Shops() {
+  const navigate = useNavigate();
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isBulkAdd, setIsBulkAdd] = useState(false);
+  
+  const [expandedBlocks, setExpandedBlocks] = useState({});
+  const [expandedFloors, setExpandedFloors] = useState({});
+
+  const shops = useSupabase('shops') || [];
+  const blocks = useSupabase('blocks') || [];
+  const floors = useSupabase('floors') || [];
+  const sales = useSupabase('sales') || [];
+  const payments = useSupabase('payments') || [];
+  const tenants = useSupabase('tenants') || [];
+
+  const toggleBlock = (block) => {
+    setExpandedBlocks(prev => ({ ...prev, [block]: !prev[block] }));
+  };
+
+  const toggleFloor = (blockFloorKey) => {
+    setExpandedFloors(prev => ({ ...prev, [blockFloorKey]: !prev[blockFloorKey] }));
+  };
+
+  const getShopBalance = (shopId) => {
+    const sale = sales.find(s => s.shopId === shopId);
+    if (!sale) return { balance: 0, allocatedAmount: 0 };
+    
+    // Get all sales for this tenant, sorted by ID for deterministic distribution
+    const tenantSales = sales.filter(s => s.tenantId === sale.tenantId).sort((a, b) => String(a.id).localeCompare(String(b.id)));
+    
+    // Get all payments for this tenant
+    const tenantPayments = payments.filter(p => p.tenantId === sale.tenantId || tenantSales.some(ts => ts.id === p.saleId));
+    const totalPaymentPool = tenantPayments.reduce((sum, p) => sum + parseFloat(p.amount || 0), 0);
+    
+    let remainingPool = totalPaymentPool;
+    
+    for (const ts of tenantSales) {
+      let saleTotal = parseFloat(ts.totalAmount || 0);
+      let advance = parseFloat(ts.advancePayment || 0);
+      let saleOwed = saleTotal - advance;
+      
+      let amountPaidFromPool = Math.min(saleOwed, remainingPool);
+      remainingPool -= amountPaidFromPool;
+      
+      let currentSaleBalance = saleOwed - amountPaidFromPool;
+      
+      if (ts.shopId === shopId) {
+        return { balance: currentSaleBalance, allocatedAmount: saleTotal };
+      }
+    }
+    return { balance: 0, allocatedAmount: 0 };
+  };
+
+  const calculatePendingForShops = (shopList) => {
+    let totalPending = 0;
+    shopList.forEach(shop => {
+      if (shop.status === 'Occupied') {
+        const { balance } = getShopBalance(shop.id);
+        if (balance > 0) {
+          totalPending += balance;
+        }
+      }
+    });
+    return totalPending;
+  };
+
+  const handleRowClick = (shop) => {
+    if (shop.status === 'Occupied') {
+      const sale = sales.find(s => s.shopId === shop.id);
+      if (sale) {
+        navigate('/ledger', { state: { tenantId: sale.tenantId } });
+      }
+    } else if (shop.status === 'Available') {
+      navigate('/tenants', { state: { preSelectShopId: shop.id } });
+    }
+  };
+
+  const handleDeleteShop = async (e, shop) => {
+    e.stopPropagation();
+    if (shop.status === 'Occupied') {
+      alert("Cannot delete an occupied shop. Remove the tenant first.");
+      return;
+    }
+    if (window.confirm(`Are you sure you want to delete Shop ${shop.shopNumber}?`)) {
+      await db.shops.delete(shop.id);
+    }
+  };
+
+  const handleAddShop = async (e) => {
+    e.preventDefault();
+    const formData = new FormData(e.target);
+    const block = formData.get('block');
+    const floor = formData.get('floor');
+    const price = parseFloat(formData.get('price'));
+
+    if (isBulkAdd) {
+      const startSerial = parseInt(formData.get('startSerial'));
+      const endSerial = parseInt(formData.get('endSerial'));
+      const prefix = formData.get('prefix') || '';
+      
+      const newShops = [];
+      for (let i = startSerial; i <= endSerial; i++) {
+        newShops.push({
+          shopNumber: `${prefix}${i}`,
+          block: block,
+          floor: floor,
+          price: price,
+          status: 'Available'
+        });
+      }
+      if (newShops.length > 0) {
+        await db.shops.bulkAdd(newShops);
+      }
+    } else {
+      const newShop = {
+        shopNumber: formData.get('shopNumber'),
+        block: block,
+        floor: floor,
+        price: price,
+        status: 'Available'
+      };
+      await db.shops.add(newShop);
+    }
+    
+    setIsModalOpen(false);
+  };
+
+  // Group shops by Block -> Floor
+  const uniqueBlocks = Array.from(new Set(shops.map(s => s.block))).sort();
+
+  return (
+    <div>
+      <div className="page-header">
+        <h1 className="page-title">Shops Management</h1>
+        <button className="btn btn-primary" onClick={() => { setIsBulkAdd(false); setIsModalOpen(true); }}>
+          <Plus size={18} /> Add Shop
+        </button>
+      </div>
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+        {shops.length === 0 ? (
+          <div className="card" style={{ textAlign: 'center', padding: '3rem', color: 'var(--color-text-muted)' }}>
+            No shops found. Click "Add Shop" to get started.
+          </div>
+        ) : (
+          uniqueBlocks.map(blockName => {
+            const blockShops = shops.filter(s => s.block === blockName);
+            const isBlockOpen = expandedBlocks[blockName];
+            const floorOrder = { 'G.F': 1, 'F.F': 2 };
+            const uniqueFloors = Array.from(new Set(blockShops.map(s => s.floor))).sort((a, b) => {
+              const orderA = floorOrder[a] || 99;
+              const orderB = floorOrder[b] || 99;
+              if (orderA !== orderB) return orderA - orderB;
+              return a.localeCompare(b);
+            });
+
+            return (
+              <div key={blockName} className="card" style={{ padding: 0, overflow: 'hidden' }}>
+                {/* Block Header */}
+                <div 
+                  style={{ 
+                    padding: '1rem 1.5rem', 
+                    backgroundColor: 'var(--color-bg-app)', 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    gap: '1rem',
+                    cursor: 'pointer',
+                    borderBottom: isBlockOpen ? '1px solid var(--color-border)' : 'none'
+                  }}
+                  onClick={() => toggleBlock(blockName)}
+                >
+                  {isBlockOpen ? <ChevronDown size={20} /> : <ChevronRight size={20} />}
+                  <h2 style={{ fontSize: '1.25rem', margin: 0, fontWeight: 600 }}>Block {blockName}</h2>
+                  <div style={{ marginLeft: 'auto', display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
+                    <span className="badge badge-neutral">{blockShops.length} Shops</span>
+                    {calculatePendingForShops(blockShops) > 0 && (
+                      <span className="badge" style={{ backgroundColor: '#fff7ed', color: '#c2410c', border: '1px solid #fdba74' }}>
+                        Pending: Rs. {calculatePendingForShops(blockShops).toLocaleString()}
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                {/* Block Content (Floors) */}
+                {isBlockOpen && (
+                  <div style={{ padding: '1rem 1.5rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                    {uniqueFloors.map(floorName => {
+                      const floorShops = blockShops.filter(s => s.floor === floorName).sort((a, b) => a.shopNumber.localeCompare(b.shopNumber, undefined, { numeric: true, sensitivity: 'base' }));
+                      const blockFloorKey = `${blockName}-${floorName}`;
+                      const isFloorOpen = expandedFloors[blockFloorKey];
+
+                      return (
+                        <div key={floorName} style={{ border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)' }}>
+                          {/* Floor Header */}
+                          <div 
+                            style={{ 
+                              padding: '0.75rem 1rem', 
+                              backgroundColor: '#f8fafc',
+                              display: 'flex', 
+                              alignItems: 'center', 
+                              gap: '0.5rem',
+                              cursor: 'pointer',
+                              borderBottom: isFloorOpen ? '1px solid var(--color-border)' : 'none'
+                            }}
+                            onClick={() => toggleFloor(blockFloorKey)}
+                          >
+                            {isFloorOpen ? <ChevronDown size={18} /> : <ChevronRight size={18} />}
+                            <h3 style={{ fontSize: '1rem', margin: 0, fontWeight: 600 }}>{floorName}</h3>
+                            <div style={{ marginLeft: 'auto', display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
+                              <span style={{ fontSize: '0.875rem', color: 'var(--color-text-muted)' }}>{floorShops.length} Shops</span>
+                              {calculatePendingForShops(floorShops) > 0 && (
+                                <span style={{ fontSize: '0.75rem', color: '#c2410c', backgroundColor: '#fff7ed', padding: '2px 6px', borderRadius: '4px', border: '1px solid #fdba74', fontWeight: 500 }}>
+                                  Pending: Rs. {calculatePendingForShops(floorShops).toLocaleString()}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Floor Content (Shops Grid) */}
+                          {isFloorOpen && (
+                            <div style={{ padding: '1rem', display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '1rem' }}>
+                              {floorShops.map(shop => {
+                                let paymentStatus = null;
+                                let balance = 0;
+                                let totalAllocatedAmount = 0;
+                                if (shop.status === 'Occupied') {
+                                  const shopData = getShopBalance(shop.id);
+                                  balance = shopData.balance;
+                                  totalAllocatedAmount = shopData.allocatedAmount;
+
+                                  if (balance <= 0) {
+                                    paymentStatus = 'Cleared';
+                                  } else {
+                                    paymentStatus = 'Pending';
+                                  }
+                                }
+
+                                let bgColor = 'white';
+                                let borderColor = 'var(--color-border)';
+                                let leftBorderColor = 'var(--color-success)'; // For available
+                                
+                                if (shop.status === 'Occupied') {
+                                  if (paymentStatus === 'Cleared') {
+                                    bgColor = 'var(--color-success-bg)';
+                                    borderColor = 'var(--color-success)';
+                                    leftBorderColor = 'var(--color-success)';
+                                  } else {
+                                    bgColor = '#fef2f2';
+                                    borderColor = '#f87171';
+                                    leftBorderColor = '#ef4444';
+                                  }
+                                }
+
+                                return (
+                                  <div 
+                                    key={shop.id}
+                                    className={shop.status === 'Occupied' ? 'shop-card occupied' : 'shop-card available'}
+                                    onClick={() => handleRowClick(shop)}
+                                    style={{
+                                      border: `1px solid ${borderColor}`,
+                                      borderRadius: 'var(--radius-sm)',
+                                      padding: '1rem',
+                                      backgroundColor: bgColor,
+                                      cursor: 'pointer',
+                                      boxShadow: 'var(--shadow-sm)',
+                                      transition: 'all 0.2s ease',
+                                      borderLeft: `4px solid ${leftBorderColor}`
+                                    }}
+                                  >
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.5rem' }}>
+                                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '0.25rem' }}>
+                                        <Store size={18} color="var(--color-text-muted)" />
+                                        <h4 style={{ margin: 0, fontSize: '1.125rem' }}>{shop.shopNumber}</h4>
+                                      </div>
+                                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '0.35rem' }}>
+                                        <span className={`badge ${shop.status === 'Available' ? 'badge-success' : 'badge-warning'}`} style={{ fontSize: '0.65rem' }}>
+                                          {shop.status}
+                                        </span>
+                                        {paymentStatus && (
+                                          <span 
+                                            className={`badge ${paymentStatus === 'Cleared' ? 'badge-success' : 'badge-neutral'}`} 
+                                            style={{ fontSize: '0.65rem' }}
+                                          >
+                                            Pymt: {paymentStatus}
+                                          </span>
+                                        )}
+                                      </div>
+                                    </div>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                                        {shop.status === 'Occupied' ? (
+                                          <>
+                                            <p style={{ margin: 0, fontSize: '0.875rem', color: 'var(--color-text-muted)', fontWeight: 500 }}>
+                                              Total: Rs. {totalAllocatedAmount.toLocaleString()}
+                                            </p>
+                                            <p style={{ margin: 0, fontSize: '0.875rem', color: balance > 0 ? '#ef4444' : 'var(--color-success)', fontWeight: 600 }}>
+                                              Bal: Rs. {balance.toLocaleString()}
+                                            </p>
+                                          </>
+                                        ) : (
+                                          <p style={{ margin: 0, fontSize: '0.875rem', color: 'var(--color-text-muted)', fontWeight: 500 }}>
+                                            Price: Rs. {shop.price.toLocaleString()}
+                                          </p>
+                                        )}
+                                      </div>
+                                      {shop.status === 'Available' && (
+                                        <button 
+                                          onClick={(e) => handleDeleteShop(e, shop)}
+                                          style={{ 
+                                            background: 'none', border: 'none', cursor: 'pointer', 
+                                            color: '#ef4444', padding: '4px', borderRadius: '4px',
+                                            display: 'flex', alignItems: 'center', justifyContent: 'center'
+                                          }}
+                                          title="Delete Shop"
+                                        >
+                                          <Trash2 size={16} />
+                                        </button>
+                                      )}
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
+              </div>
+            )
+          })
+        )}
+      </div>
+
+      {/* Add Shop Modal */}
+      {isModalOpen && (
+        <div className="modal-overlay" onClick={() => setIsModalOpen(false)}>
+          <div className="modal-content" onClick={e => e.stopPropagation()}>
+            <div className="modal-header">
+              <h2 className="modal-title">{isBulkAdd ? 'Bulk Add Shops (Serial)' : 'Add New Shop'}</h2>
+              <button className="modal-close" onClick={() => setIsModalOpen(false)}><X size={24} /></button>
+            </div>
+            
+            <div style={{ display: 'flex', gap: '1rem', marginBottom: '1.5rem', borderBottom: '1px solid var(--color-border)', paddingBottom: '1rem' }}>
+              <button 
+                type="button" 
+                className={`btn ${!isBulkAdd ? 'btn-primary' : 'btn-secondary'}`}
+                onClick={() => setIsBulkAdd(false)}
+              >
+                <Plus size={16} /> Single Shop
+              </button>
+              <button 
+                type="button" 
+                className={`btn ${isBulkAdd ? 'btn-primary' : 'btn-secondary'}`}
+                onClick={() => setIsBulkAdd(true)}
+              >
+                <Layers size={16} /> Bulk Add (Serial No)
+              </button>
+            </div>
+
+            <form onSubmit={handleAddShop}>
+              {isBulkAdd ? (
+                <>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                    <div className="form-group">
+                      <label className="form-label">Start Serial No.</label>
+                      <input type="number" name="startSerial" className="form-control" required min="1" placeholder="e.g. 1" />
+                    </div>
+                    <div className="form-group">
+                      <label className="form-label">End Serial No.</label>
+                      <input type="number" name="endSerial" className="form-control" required min="1" placeholder="e.g. 20" />
+                    </div>
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">Optional Prefix (e.g. "B-", "A1-")</label>
+                    <input type="text" name="prefix" className="form-control" placeholder="Prefix before serial number" />
+                  </div>
+                </>
+              ) : (
+                <div className="form-group">
+                  <label className="form-label">Shop Number</label>
+                  <input type="text" name="shopNumber" className="form-control" required placeholder="e.g. Shop 12" />
+                </div>
+              )}
+              
+              <div className="form-group">
+                <label className="form-label">Block</label>
+                {blocks.length > 0 ? (
+                  <select name="block" className="form-control" required>
+                    <option value="">-- Select Block --</option>
+                    {blocks.map(b => <option key={b.id} value={b.name}>{b.name}</option>)}
+                  </select>
+                ) : (
+                  <input type="text" name="block" className="form-control" placeholder="Go to Setup to add blocks" required />
+                )}
+              </div>
+              <div className="form-group">
+                <label className="form-label">Floor</label>
+                {floors.length > 0 ? (
+                  <select name="floor" className="form-control" required>
+                    <option value="">-- Select Floor --</option>
+                    {floors.map(f => <option key={f.id} value={f.name}>{f.name}</option>)}
+                  </select>
+                ) : (
+                  <input type="text" name="floor" className="form-control" placeholder="Go to Setup to add floors" required />
+                )}
+              </div>
+              <div className="form-group">
+                <label className="form-label">Default Price per Shop</label>
+                <input type="number" name="price" className="form-control" required min="0" step="0.01" />
+              </div>
+              <div style={{ marginTop: '1.5rem', display: 'flex', justifyContent: 'flex-end', gap: '1rem' }}>
+                <button type="button" className="btn btn-secondary" onClick={() => setIsModalOpen(false)}>Cancel</button>
+                <button type="submit" className="btn btn-primary">{isBulkAdd ? 'Generate Shops' : 'Save Shop'}</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
