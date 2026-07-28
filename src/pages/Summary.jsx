@@ -11,7 +11,7 @@ export default function Summary() {
   const printRef = useRef(null);
 
   const handlePrint = useReactToPrint({
-    content: () => printRef.current,
+    contentRef: printRef,
     documentTitle: 'Block Summary Report',
   });
 
