@@ -10,6 +10,7 @@ import Payments from './pages/Payments';
 import Ledger from './pages/Ledger';
 import Login from './pages/Login';
 import AdminPanel from './pages/AdminPanel';
+import Summary from './pages/Summary';
 import { supabase } from './supabaseClient';
 
 function App() {
@@ -88,6 +89,7 @@ function App() {
           <Route path="/ledger" element={<Ledger />} />
           <Route path="/sales" element={<Sales />} />
           <Route path="/payments" element={<Payments />} />
+          <Route path="/summary" element={<Summary />} />
           
           {currentUser.email === 'talhanaveed89@gmail.com' && (
             <Route path="/admin" element={<AdminPanel />} />

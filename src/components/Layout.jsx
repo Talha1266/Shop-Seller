@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { LayoutDashboard, Store, Users, Receipt, CreditCard, FileText, ShieldAlert, LogOut, Menu, X } from 'lucide-react';
+import { LayoutDashboard, Store, Users, Receipt, CreditCard, FileText, ShieldAlert, LogOut, Menu, X, PieChart } from 'lucide-react';
 
 export default function Layout({ children, currentUser, onLogout }) {
   const location = useLocation();
@@ -18,6 +18,7 @@ export default function Layout({ children, currentUser, onLogout }) {
     { path: '/ledger', label: 'Ledgers', icon: FileText },
     { path: '/sales', label: 'Sales & Allocations', icon: Receipt },
     { path: '/payments', label: 'Payments', icon: CreditCard },
+    { path: '/summary', label: 'Summary', icon: PieChart },
   ];
 
   if (currentUser?.email === 'talhanaveed89@gmail.com') {
