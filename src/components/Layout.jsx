@@ -68,6 +68,7 @@ export default function Layout({ children, currentUser, onLogout }) {
               onChange={(e) => changeActiveProject(e.target.value)}
               disabled={loading}
             >
+              <option value="">-- All Projects --</option>
               {projects.map(p => (
                 <option key={p.id} value={p.id}>{p.name}</option>
               ))}
@@ -83,18 +84,20 @@ export default function Layout({ children, currentUser, onLogout }) {
           </div>
         </div>
 
-        <nav className="sidebar-nav">
-          {navItems.map((item) => (
-            <Link
-              key={item.path}
-              to={item.path}
-              className={`nav-item ${location.pathname === item.path ? 'active' : ''}`}
-            >
-              <item.icon size={20} />
-              {item.label}
-            </Link>
-          ))}
-        </nav>
+        {activeProject && (
+          <nav className="sidebar-nav">
+            {navItems.map((item) => (
+              <Link
+                key={item.path}
+                to={item.path}
+                className={`nav-item ${location.pathname === item.path ? 'active' : ''}`}
+              >
+                <item.icon size={20} />
+                {item.label}
+              </Link>
+            ))}
+          </nav>
+        )}
       </aside>
       <main className="main-content">
         <header className="topbar">

@@ -23,7 +23,6 @@ export function ProjectProvider({ children }) {
       } else if (data) {
         setProjects(data);
         
-        // If there is no active project, but projects exist, default to the first one
         if (data.length > 0) {
           // Check local storage for previously selected project
           const savedProjectId = localStorage.getItem('activeProjectId');
@@ -31,9 +30,6 @@ export function ProjectProvider({ children }) {
           
           if (savedProject) {
             setActiveProject(savedProject);
-          } else {
-            setActiveProject(data[0]);
-            localStorage.setItem('activeProjectId', data[0].id);
           }
         }
       }
@@ -57,6 +53,12 @@ export function ProjectProvider({ children }) {
   }, []);
 
   const changeActiveProject = (projectId) => {
+    if (!projectId) {
+      setActiveProject(null);
+      localStorage.removeItem('activeProjectId');
+      return;
+    }
+    
     const project = projects.find(p => p.id === projectId);
     if (project) {
       setActiveProject(project);
