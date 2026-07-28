@@ -1,0 +1,103 @@
+import { createContext, useContext, useState, useEffect } from 'react';
+import { supabase } from '../supabaseClient';
+
+const ProjectContext = createContext();
+
+export function ProjectProvider({ children }) {
+  const [projects, setProjects] = useState([]);
+  const [activeProject, setActiveProject] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  // Fetch all projects
+  useEffect(() => {
+    let subscription;
+
+    const fetchProjects = async () => {
+      const { data, error } = await supabase
+        .from('projects')
+        .select('*')
+        .order('created_at', { ascending: true });
+
+      if (error) {
+        console.error('Error fetching projects:', error);
+      } else if (data) {
+        setProjects(data);
+        
+        // If there is no active project, but projects exist, default to the first one
+        if (data.length > 0) {
+          // Check local storage for previously selected project
+          const savedProjectId = localStorage.getItem('activeProjectId');
+          const savedProject = data.find(p => p.id === savedProjectId);
+          
+          if (savedProject) {
+            setActiveProject(savedProject);
+          } else {
+            setActiveProject(data[0]);
+            localStorage.setItem('activeProjectId', data[0].id);
+          }
+        }
+      }
+      setLoading(false);
+    };
+
+    fetchProjects();
+
+    subscription = supabase
+      .channel('public:projects')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'projects' }, () => {
+        fetchProjects();
+      })
+      .subscribe();
+
+    return () => {
+      if (subscription) {
+        supabase.removeChannel(subscription);
+      }
+    };
+  }, []);
+
+  const changeActiveProject = (projectId) => {
+    const project = projects.find(p => p.id === projectId);
+    if (project) {
+      setActiveProject(project);
+      localStorage.setItem('activeProjectId', project.id);
+    }
+  };
+
+  const createProject = async (name) => {
+    const { data, error } = await supabase
+      .from('projects')
+      .insert({ name })
+      .select()
+      .single();
+      
+    if (error) throw error;
+    
+    // Automatically switch to the newly created project
+    if (data) {
+      setActiveProject(data);
+      localStorage.setItem('activeProjectId', data.id);
+    }
+    return data;
+  };
+
+  return (
+    <ProjectContext.Provider value={{ 
+      projects, 
+      activeProject, 
+      changeActiveProject, 
+      createProject,
+      loading 
+    }}>
+      {children}
+    </ProjectContext.Provider>
+  );
+}
+
+export function useProject() {
+  const context = useContext(ProjectContext);
+  if (context === undefined) {
+    throw new Error('useProject must be used within a ProjectProvider');
+  }
+  return context;
+}

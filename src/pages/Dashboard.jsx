@@ -1,5 +1,5 @@
 import { useSupabase } from '../hooks/useSupabase';
-import { db } from '../db';
+import { useDb } from '../hooks/useDb';
 import { supabase } from '../supabaseClient';
 import { Store, ShoppingCart, DollarSign, Wallet, Bell } from 'lucide-react';
 import { 
@@ -10,6 +10,7 @@ import {
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8b5cf6', '#ef4444'];
 
 export default function Dashboard() {
+  const db = useDb();
   const shops = useSupabase('shops') || [];
   const sales = useSupabase('sales') || [];
   const payments = useSupabase('payments') || [];

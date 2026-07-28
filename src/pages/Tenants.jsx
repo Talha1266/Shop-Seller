@@ -1,11 +1,12 @@
 import { useState, useRef, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useSupabase } from '../hooks/useSupabase';
-import { db } from '../db';
+import { useDb } from '../hooks/useDb';
 import { supabase } from '../supabaseClient';
 import { Plus, X, Paperclip, Download, Trash2, FileText } from 'lucide-react';
 
 export default function Tenants() {
+  const db = useDb();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isDocModalOpen, setIsDocModalOpen] = useState(false);
   const [selectedTenantForDocs, setSelectedTenantForDocs] = useState(null);

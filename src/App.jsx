@@ -12,6 +12,7 @@ import Login from './pages/Login';
 import AdminPanel from './pages/AdminPanel';
 import Summary from './pages/Summary';
 import { supabase } from './supabaseClient';
+import { ProjectProvider } from './contexts/ProjectContext';
 
 function App() {
   const [currentUser, setCurrentUser] = useState(null);
@@ -79,26 +80,28 @@ function App() {
   }
 
   return (
-    <BrowserRouter>
-      <Layout currentUser={currentUser} onLogout={handleLogout}>
-        <Routes>
-          <Route path="/" element={<Dashboard />} />
-          <Route path="/setup" element={<Setup />} />
-          <Route path="/shops" element={<Shops />} />
-          <Route path="/tenants" element={<Tenants />} />
-          <Route path="/ledger" element={<Ledger />} />
-          <Route path="/sales" element={<Sales />} />
-          <Route path="/payments" element={<Payments />} />
-          <Route path="/summary" element={<Summary />} />
-          
-          {currentUser.email === 'talhanaveed89@gmail.com' && (
-            <Route path="/admin" element={<AdminPanel />} />
-          )}
-          
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
-      </Layout>
-    </BrowserRouter>
+    <ProjectProvider>
+      <BrowserRouter>
+        <Layout currentUser={currentUser} onLogout={handleLogout}>
+          <Routes>
+            <Route path="/" element={<Dashboard />} />
+            <Route path="/setup" element={<Setup />} />
+            <Route path="/shops" element={<Shops />} />
+            <Route path="/tenants" element={<Tenants />} />
+            <Route path="/ledger" element={<Ledger />} />
+            <Route path="/sales" element={<Sales />} />
+            <Route path="/payments" element={<Payments />} />
+            <Route path="/summary" element={<Summary />} />
+            
+            {currentUser.email === 'talhanaveed89@gmail.com' && (
+              <Route path="/admin" element={<AdminPanel />} />
+            )}
+            
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Routes>
+        </Layout>
+      </BrowserRouter>
+    </ProjectProvider>
   );
 }
 

@@ -1,14 +1,22 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../supabaseClient';
+import { useProject } from '../contexts/ProjectContext';
 
 export function useSupabase(tableName) {
   const [data, setData] = useState([]);
+  const { activeProject } = useProject();
 
   useEffect(() => {
     let subscription;
     
     const fetchData = async () => {
-      const { data: result, error } = await supabase.from(tableName).select('*');
+      let query = supabase.from(tableName).select('*');
+      
+      if (tableName !== 'users' && tableName !== 'projects' && activeProject) {
+        query = query.eq('project_id', activeProject.id);
+      }
+      
+      const { data: result, error } = await query;
       if (error) {
         console.error(`Error fetching from ${tableName}:`, error);
       } else if (result) {
@@ -31,7 +39,7 @@ export function useSupabase(tableName) {
         supabase.removeChannel(subscription);
       }
     };
-  }, [tableName]);
+  }, [tableName, activeProject]);
 
   return data;
 }

@@ -1,10 +1,11 @@
 import { useState } from 'react';
 import { useSupabase } from '../hooks/useSupabase';
-import { db } from '../db';
+import { useDb } from '../hooks/useDb';
 import { supabase } from '../supabaseClient';
 import { Plus, X } from 'lucide-react';
 
 export default function Sales() {
+  const db = useDb();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const sales = useSupabase('sales') || [];
   const shops = useSupabase('shops') || [];

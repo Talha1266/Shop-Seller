@@ -1,11 +1,12 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useSupabase } from '../hooks/useSupabase';
-import { db } from '../db';
+import { useDb } from '../hooks/useDb';
 import { supabase } from '../supabaseClient';
 import { Plus, X, Layers, ChevronDown, ChevronRight, Store, Trash2 } from 'lucide-react';
 
 export default function Shops() {
+  const db = useDb();
   const navigate = useNavigate();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isBulkAdd, setIsBulkAdd] = useState(false);

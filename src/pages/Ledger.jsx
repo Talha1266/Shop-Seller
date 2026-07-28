@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useSupabase } from '../hooks/useSupabase';
-import { db } from '../db';
+import { useDb } from '../hooks/useDb';
 import { supabase } from '../supabaseClient';
 import { Printer, FileText, Plus, X } from 'lucide-react';
 import { useReactToPrint } from 'react-to-print';
@@ -98,6 +98,7 @@ const LedgerPrint = ({ tenant, tenantSales, tenantShops, payments, totalAmount, 
 };
 
 export default function Ledger() {
+  const db = useDb();
   const location = useLocation();
   const navigate = useNavigate();
   const [searchMode, setSearchMode] = useState('tenant'); // 'tenant' or 'shop'

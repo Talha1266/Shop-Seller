@@ -1,10 +1,11 @@
 import { useState } from 'react';
 import { useSupabase } from '../hooks/useSupabase';
-import { db } from '../db';
+import { useDb } from '../hooks/useDb';
 import { supabase } from '../supabaseClient';
 import { Settings, Plus, X, Trash2 } from 'lucide-react';
 
 export default function Setup() {
+  const db = useDb();
   const blocks = useSupabase('blocks') || [];
   const floors = useSupabase('floors') || [];
 

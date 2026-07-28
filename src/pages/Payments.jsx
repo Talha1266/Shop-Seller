@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
 import { useSupabase } from '../hooks/useSupabase';
-import { db } from '../db';
+import { useDb } from '../hooks/useDb';
 import { supabase } from '../supabaseClient';
 import { Plus, X, Printer } from 'lucide-react';
 import { useReactToPrint } from 'react-to-print';
@@ -57,6 +57,7 @@ const ReceiptPrint = ({ payment, tenantShops, tenant, innerRef }) => {
 
 
 export default function Payments() {
+  const db = useDb();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [printPaymentId, setPrintPaymentId] = useState(null);
   const [preSelectedTenantId, setPreSelectedTenantId] = useState('');
