@@ -49,7 +49,8 @@ export default function ProjectsDashboard() {
       setIsCreatingProject(false);
       setNewProjectName('');
     } catch (err) {
-      alert("Failed to create project.");
+      console.error(err);
+      alert("Failed to create project. Error: " + err.message);
     }
   };
 
