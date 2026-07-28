@@ -1,10 +1,12 @@
 import { useState, useMemo } from 'react';
 import { useProject } from '../contexts/ProjectContext';
 import { useSupabase } from '../hooks/useSupabase';
-import { Building2, Store, Users, DollarSign, ChevronRight } from 'lucide-react';
+import { Building2, Store, Users, DollarSign, ChevronRight, Plus, X } from 'lucide-react';
 
 export default function ProjectsDashboard() {
-  const { projects, changeActiveProject } = useProject();
+  const { projects, changeActiveProject, createProject } = useProject();
+  const [isCreatingProject, setIsCreatingProject] = useState(false);
+  const [newProjectName, setNewProjectName] = useState('');
   
   // Since activeProject is null here, useSupabase fetches ALL data across all projects
   const allShops = useSupabase('shops') || [];
@@ -39,23 +41,71 @@ export default function ProjectsDashboard() {
     });
   }, [projects, allShops, allSales, allPayments]);
 
+  const handleCreateProject = async (e) => {
+    e.preventDefault();
+    if (!newProjectName.trim()) return;
+    try {
+      await createProject(newProjectName.trim());
+      setIsCreatingProject(false);
+      setNewProjectName('');
+    } catch (err) {
+      alert("Failed to create project.");
+    }
+  };
+
   if (projects.length === 0) {
     return (
       <div className="card" style={{ textAlign: 'center', padding: '4rem 2rem' }}>
         <Building2 size={48} color="var(--color-text-muted)" style={{ margin: '0 auto 1rem auto' }} />
         <h2>No Projects Found</h2>
-        <p style={{ color: 'var(--color-text-muted)', marginTop: '0.5rem' }}>
-          Use the sidebar to create your first project.
+        <p style={{ color: 'var(--color-text-muted)', margin: '0.5rem 0 1.5rem 0' }}>
+          Create your first project to get started.
         </p>
+        <button className="btn btn-primary" onClick={() => setIsCreatingProject(true)} style={{ margin: '0 auto' }}>
+          <Plus size={20} /> Create Project
+        </button>
+        {isCreatingProject && (
+          <div className="modal-overlay" onClick={() => setIsCreatingProject(false)}>
+            <div className="modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: '400px', textAlign: 'left' }}>
+              <div className="modal-header">
+                <h2 className="modal-title">Create New Project</h2>
+                <button className="icon-btn" onClick={() => setIsCreatingProject(false)}><X size={20} /></button>
+              </div>
+              <form onSubmit={handleCreateProject}>
+                <div className="form-group">
+                  <label className="form-label">Project Name</label>
+                  <input 
+                    type="text" 
+                    className="input-field" 
+                    value={newProjectName}
+                    onChange={(e) => setNewProjectName(e.target.value)}
+                    placeholder="e.g. Skyline Plaza" 
+                    required 
+                    autoFocus
+                  />
+                </div>
+                <div className="modal-footer" style={{ marginTop: '2rem' }}>
+                  <button type="button" className="btn btn-secondary" onClick={() => setIsCreatingProject(false)}>Cancel</button>
+                  <button type="submit" className="btn btn-primary" disabled={!newProjectName.trim()}>Create Project</button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
       </div>
     );
   }
 
   return (
     <div>
-      <div style={{ marginBottom: '2rem' }}>
-        <h1 style={{ fontSize: '1.75rem', fontWeight: 'bold' }}>All Projects</h1>
-        <p style={{ color: 'var(--color-text-muted)' }}>Select a project to view details and manage it.</p>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '2rem' }}>
+        <div>
+          <h1 style={{ fontSize: '1.75rem', fontWeight: 'bold' }}>All Projects</h1>
+          <p style={{ color: 'var(--color-text-muted)' }}>Select a project to view details and manage it.</p>
+        </div>
+        <button className="btn btn-primary" onClick={() => setIsCreatingProject(true)}>
+          <Plus size={20} /> Create Project
+        </button>
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '1.5rem' }}>
@@ -118,6 +168,35 @@ export default function ProjectsDashboard() {
           </div>
         ))}
       </div>
+
+      {isCreatingProject && (
+        <div className="modal-overlay" onClick={() => setIsCreatingProject(false)}>
+          <div className="modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: '400px' }}>
+            <div className="modal-header">
+              <h2 className="modal-title">Create New Project</h2>
+              <button className="icon-btn" onClick={() => setIsCreatingProject(false)}><X size={20} /></button>
+            </div>
+            <form onSubmit={handleCreateProject}>
+              <div className="form-group">
+                <label className="form-label">Project Name</label>
+                <input 
+                  type="text" 
+                  className="input-field" 
+                  value={newProjectName}
+                  onChange={(e) => setNewProjectName(e.target.value)}
+                  placeholder="e.g. Skyline Plaza" 
+                  required 
+                  autoFocus
+                />
+              </div>
+              <div className="modal-footer" style={{ marginTop: '2rem' }}>
+                <button type="button" className="btn btn-secondary" onClick={() => setIsCreatingProject(false)}>Cancel</button>
+                <button type="submit" className="btn btn-primary" disabled={!newProjectName.trim()}>Create Project</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

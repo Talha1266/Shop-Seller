@@ -4,9 +4,7 @@ import { LayoutDashboard, Store, Users, Receipt, CreditCard, FileText, ShieldAle
 import { useProject } from '../contexts/ProjectContext';
 
 export default function Layout({ children, currentUser, onLogout }) {
-  const { projects, activeProject, changeActiveProject, createProject, loading } = useProject();
-  const [isCreatingProject, setIsCreatingProject] = useState(false);
-  const [newProjectName, setNewProjectName] = useState('');
+  const { activeProject, changeActiveProject } = useProject();
   const location = useLocation();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
@@ -14,18 +12,6 @@ export default function Layout({ children, currentUser, onLogout }) {
   useEffect(() => {
     setIsSidebarOpen(false);
   }, [location.pathname]);
-
-  const handleCreateProject = async (e) => {
-    e.preventDefault();
-    if (!newProjectName.trim()) return;
-    try {
-      await createProject(newProjectName.trim());
-      setIsCreatingProject(false);
-      setNewProjectName('');
-    } catch (err) {
-      alert("Failed to create project.");
-    }
-  };
 
   const navItems = [
     { path: '/', label: 'Dashboard', icon: LayoutDashboard },
@@ -57,35 +43,17 @@ export default function Layout({ children, currentUser, onLogout }) {
           </button>
         </div>
         
-        {/* Project Selector */}
-        <div style={{ padding: '0 1.25rem 1rem 1.25rem' }}>
-          <label style={{ display: 'block', fontSize: '0.75rem', textTransform: 'uppercase', color: 'var(--color-text-muted)', marginBottom: '0.5rem', fontWeight: 600 }}>Active Project</label>
-          <div style={{ display: 'flex', gap: '0.5rem' }}>
-            <select 
-              className="input-field" 
-              style={{ padding: '0.5rem', fontSize: '0.875rem' }}
-              value={activeProject?.id || ''} 
-              onChange={(e) => changeActiveProject(e.target.value)}
-              disabled={loading}
-            >
-              <option value="">-- All Projects --</option>
-              {projects.map(p => (
-                <option key={p.id} value={p.id}>{p.name}</option>
-              ))}
-            </select>
-            <button 
-              className="btn btn-secondary" 
-              style={{ padding: '0.5rem' }} 
-              onClick={() => setIsCreatingProject(true)}
-              title="Create New Project"
-            >
-              <Plus size={16} />
-            </button>
-          </div>
-        </div>
-
         {activeProject && (
           <nav className="sidebar-nav">
+            <button
+              onClick={() => changeActiveProject(null)}
+              className="nav-item"
+              style={{ width: '100%', textAlign: 'left', background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--color-text)' }}
+            >
+              <Folder size={20} />
+              Switch Project
+            </button>
+            <div style={{ height: '1px', backgroundColor: 'var(--color-border)', margin: '0.5rem 1rem' }}></div>
             {navItems.map((item) => (
               <Link
                 key={item.path}
@@ -140,36 +108,6 @@ export default function Layout({ children, currentUser, onLogout }) {
           {children}
         </div>
       </main>
-
-      {/* Create Project Modal */}
-      {isCreatingProject && (
-        <div className="modal-overlay" onClick={() => setIsCreatingProject(false)}>
-          <div className="modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: '400px' }}>
-            <div className="modal-header">
-              <h2 className="modal-title">Create New Project</h2>
-              <button className="icon-btn" onClick={() => setIsCreatingProject(false)}><X size={20} /></button>
-            </div>
-            <form onSubmit={handleCreateProject}>
-              <div className="form-group">
-                <label className="form-label">Project Name</label>
-                <input 
-                  type="text" 
-                  className="input-field" 
-                  value={newProjectName}
-                  onChange={(e) => setNewProjectName(e.target.value)}
-                  placeholder="e.g. Skyline Plaza" 
-                  required 
-                  autoFocus
-                />
-              </div>
-              <div className="modal-footer" style={{ marginTop: '2rem' }}>
-                <button type="button" className="btn btn-secondary" onClick={() => setIsCreatingProject(false)}>Cancel</button>
-                <button type="submit" className="btn btn-primary" disabled={!newProjectName.trim()}>Create Project</button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
