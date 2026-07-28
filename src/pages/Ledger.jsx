@@ -193,8 +193,8 @@ export default function Ledger() {
       </div>
 
       <div className="card" style={{ marginBottom: '2rem' }}>
-        <div style={{ display: 'flex', gap: '1rem', alignItems: 'flex-end', maxWidth: searchMode === 'shop' ? '800px' : '600px' }}>
-          <div className="form-group" style={{ margin: 0, flex: 1 }}>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '1rem', alignItems: 'flex-end', maxWidth: searchMode === 'shop' ? '800px' : '600px' }}>
+          <div className="form-group" style={{ margin: 0, flex: '1 1 200px' }}>
             <label className="form-label">Search By</label>
             <select 
               className="form-control" 
@@ -211,7 +211,7 @@ export default function Ledger() {
           </div>
           
           {searchMode === 'shop' && (
-            <div className="form-group" style={{ margin: 0, flex: 1 }}>
+            <div className="form-group" style={{ margin: 0, flex: '1 1 200px' }}>
               <label className="form-label">Select Block</label>
               <select 
                 className="form-control" 
@@ -226,7 +226,7 @@ export default function Ledger() {
             </div>
           )}
           
-          <div className="form-group" style={{ margin: 0, flex: 2 }}>
+          <div className="form-group" style={{ margin: 0, flex: '2 1 300px' }}>
             <label className="form-label">
               {searchMode === 'tenant' ? 'Select Tenant' : 'Select Allocated Shop'}
             </label>
@@ -252,15 +252,15 @@ export default function Ledger() {
 
       {tenant && tenantSales.length > 0 ? (
         <div className="card" style={{ padding: 0 }}>
-          <div style={{ padding: '1.5rem', borderBottom: '1px solid var(--color-border)', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-            <div>
+          <div style={{ padding: '1.5rem', borderBottom: '1px solid var(--color-border)', display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: '1rem' }}>
+            <div style={{ flex: '1 1 100%' }}>
               <h2 style={{ fontSize: '1.25rem', fontWeight: 600, margin: '0 0 0.5rem 0' }}>{tenant.name}</h2>
               <p style={{ color: 'var(--color-text-muted)', margin: 0 }}>
                 {searchMode === 'tenant' && tenantShops.length > 1 ? 'Combined Ledger for: ' : 'Ledger for: '}
                 {tenantShops.map(s => `Shop ${s.shopNumber} (Block ${s.block})`).join(', ')}
               </p>
             </div>
-            <div style={{ display: 'flex', gap: '1rem' }}>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '1rem', width: '100%' }}>
               <button className="btn btn-primary" onClick={() => setIsPaymentModalOpen(true)}>
                 <Plus size={18} /> Record Payment
               </button>
