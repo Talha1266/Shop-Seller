@@ -55,7 +55,7 @@ export default function Summary() {
     return blocks.map(block => {
       const blockShops = shops.filter(s => s.block === block);
       const totalShops = blockShops.length;
-      const vacantShops = blockShops.filter(s => s.status === 'Vacant').length;
+      const availableShops = blockShops.filter(s => s.status === 'Available').length;
       const occupiedShops = blockShops.filter(s => s.status === 'Occupied').length;
       
       const blockSales = computedSales.filter(sale => {
@@ -69,7 +69,7 @@ export default function Summary() {
       return {
         block,
         totalShops,
-        vacantShops,
+        availableShops,
         occupiedShops,
         totalAllocatedValue,
         pendingBalance
@@ -83,7 +83,7 @@ export default function Summary() {
 
   // Totals for the footer
   const grandTotalShops = blockSummaries.reduce((sum, b) => sum + b.totalShops, 0);
-  const grandVacant = blockSummaries.reduce((sum, b) => sum + b.vacantShops, 0);
+  const grandAvailable = blockSummaries.reduce((sum, b) => sum + b.availableShops, 0);
   const grandOccupied = blockSummaries.reduce((sum, b) => sum + b.occupiedShops, 0);
   const grandValue = blockSummaries.reduce((sum, b) => sum + b.totalAllocatedValue, 0);
   const grandPending = blockSummaries.reduce((sum, b) => sum + b.pendingBalance, 0);
@@ -97,6 +97,38 @@ export default function Summary() {
         </button>
       </div>
 
+      <div style={{ marginBottom: '2rem', color: 'var(--color-text-muted)', lineHeight: '1.6' }}>
+        <p>
+          This summary provides a comprehensive bird's-eye view of your entire plaza, aggregated by building blocks. 
+          It tracks the total inventory of shops, automatically identifies how many are still available for sale, 
+          and utilizes a smart distribution algorithm to accurately calculate the exact outstanding pending balances 
+          across all tenants within each specific block.
+        </p>
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '1.5rem', marginBottom: '2rem' }}>
+        <div className="card" style={{ borderLeft: '4px solid var(--color-primary)' }}>
+          <p style={{ color: 'var(--color-text-muted)', fontSize: '0.875rem', marginBottom: '0.5rem' }}>Total Plaza Inventory</p>
+          <div style={{ display: 'flex', alignItems: 'flex-end', gap: '1rem' }}>
+            <h3 style={{ fontSize: '2rem', fontWeight: 700, margin: 0 }}>{grandTotalShops}</h3>
+            <span style={{ marginBottom: '0.25rem', color: 'var(--color-text-muted)' }}>Shops</span>
+          </div>
+        </div>
+        <div className="card" style={{ borderLeft: '4px solid var(--color-success)' }}>
+          <p style={{ color: 'var(--color-text-muted)', fontSize: '0.875rem', marginBottom: '0.5rem' }}>Available for Sale</p>
+          <div style={{ display: 'flex', alignItems: 'flex-end', gap: '1rem' }}>
+            <h3 style={{ fontSize: '2rem', fontWeight: 700, margin: 0, color: 'var(--color-success)' }}>{grandAvailable}</h3>
+            <span style={{ marginBottom: '0.25rem', color: 'var(--color-text-muted)' }}>Shops</span>
+          </div>
+        </div>
+        <div className="card" style={{ borderLeft: '4px solid #b91c1c' }}>
+          <p style={{ color: 'var(--color-text-muted)', fontSize: '0.875rem', marginBottom: '0.5rem' }}>Total Pending Collections</p>
+          <div style={{ display: 'flex', alignItems: 'flex-end', gap: '1rem' }}>
+            <h3 style={{ fontSize: '1.5rem', fontWeight: 700, margin: 0, color: '#b91c1c' }}>Rs. {grandPending.toLocaleString()}</h3>
+          </div>
+        </div>
+      </div>
+
       <div className="card">
         <div className="table-container">
           <table className="table">
@@ -104,7 +136,7 @@ export default function Summary() {
               <tr>
                 <th>Block</th>
                 <th>Total Shops</th>
-                <th>Vacant Shops</th>
+                <th>Available Shops</th>
                 <th>Occupied Shops</th>
                 <th>Total Allocated Value</th>
                 <th>Pending Balance</th>
@@ -115,7 +147,7 @@ export default function Summary() {
                 <tr key={summary.block} className="hoverable-row">
                   <td><strong>Block {summary.block}</strong></td>
                   <td>{summary.totalShops}</td>
-                  <td><span style={{ color: summary.vacantShops > 0 ? 'var(--color-primary)' : 'inherit' }}>{summary.vacantShops}</span></td>
+                  <td><span style={{ color: summary.availableShops > 0 ? 'var(--color-success)' : 'inherit', fontWeight: summary.availableShops > 0 ? 'bold' : 'normal' }}>{summary.availableShops}</span></td>
                   <td>{summary.occupiedShops}</td>
                   <td>Rs. {summary.totalAllocatedValue.toLocaleString()}</td>
                   <td><strong style={{ color: summary.pendingBalance > 0 ? '#b91c1c' : 'inherit' }}>Rs. {summary.pendingBalance.toLocaleString()}</strong></td>
@@ -132,7 +164,7 @@ export default function Summary() {
                 <tr style={{ backgroundColor: '#f9fafb', fontWeight: 'bold' }}>
                   <td>GRAND TOTAL</td>
                   <td>{grandTotalShops}</td>
-                  <td>{grandVacant}</td>
+                  <td style={{ color: grandAvailable > 0 ? 'var(--color-success)' : 'inherit' }}>{grandAvailable}</td>
                   <td>{grandOccupied}</td>
                   <td>Rs. {grandValue.toLocaleString()}</td>
                   <td><strong style={{ color: '#b91c1c' }}>Rs. {grandPending.toLocaleString()}</strong></td>
@@ -167,7 +199,7 @@ export default function Summary() {
               <tr>
                 <th>Block</th>
                 <th>Total Shops</th>
-                <th>Vacant Shops</th>
+                <th>Available Shops</th>
                 <th>Occupied Shops</th>
                 <th>Total Allocated Value</th>
                 <th>Pending Balance</th>
@@ -178,7 +210,7 @@ export default function Summary() {
                 <tr key={summary.block}>
                   <td><strong>Block {summary.block}</strong></td>
                   <td>{summary.totalShops}</td>
-                  <td>{summary.vacantShops}</td>
+                  <td>{summary.availableShops}</td>
                   <td>{summary.occupiedShops}</td>
                   <td>Rs. {summary.totalAllocatedValue.toLocaleString()}</td>
                   <td>Rs. {summary.pendingBalance.toLocaleString()}</td>
@@ -190,7 +222,7 @@ export default function Summary() {
                 <tr>
                   <td>GRAND TOTAL</td>
                   <td>{grandTotalShops}</td>
-                  <td>{grandVacant}</td>
+                  <td>{grandAvailable}</td>
                   <td>{grandOccupied}</td>
                   <td>Rs. {grandValue.toLocaleString()}</td>
                   <td>Rs. {grandPending.toLocaleString()}</td>
