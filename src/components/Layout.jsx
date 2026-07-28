@@ -1,8 +1,15 @@
+import { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { LayoutDashboard, Store, Users, Receipt, CreditCard, FileText, ShieldAlert, LogOut } from 'lucide-react';
+import { LayoutDashboard, Store, Users, Receipt, CreditCard, FileText, ShieldAlert, LogOut, Menu, X } from 'lucide-react';
 
 export default function Layout({ children, currentUser, onLogout }) {
   const location = useLocation();
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+
+  // Close sidebar on route change
+  useEffect(() => {
+    setIsSidebarOpen(false);
+  }, [location.pathname]);
 
   const navItems = [
     { path: '/', label: 'Dashboard', icon: LayoutDashboard },
@@ -19,10 +26,18 @@ export default function Layout({ children, currentUser, onLogout }) {
 
   return (
     <div className="app-container">
-      <aside className="sidebar">
-        <div className="sidebar-header">
-          <Store size={24} color="#f59e0b" />
-          PlazaManager
+      {isSidebarOpen && (
+        <div className="sidebar-overlay" onClick={() => setIsSidebarOpen(false)}></div>
+      )}
+      <aside className={`sidebar ${isSidebarOpen ? 'open' : ''}`}>
+        <div className="sidebar-header" style={{ justifyContent: 'space-between' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+            <Store size={24} color="#f59e0b" />
+            <span className="sidebar-title">PlazaManager</span>
+          </div>
+          <button className="mobile-only sidebar-close-btn" onClick={() => setIsSidebarOpen(false)}>
+            <X size={24} color="#fff" />
+          </button>
         </div>
         <nav className="sidebar-nav">
           {navItems.map((item) => (
@@ -39,8 +54,13 @@ export default function Layout({ children, currentUser, onLogout }) {
       </aside>
       <main className="main-content">
         <header className="topbar">
-          <h2 style={{ fontSize: '1.125rem', fontWeight: 600 }}>Plaza Management System</h2>
           <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+            <button className="mobile-only menu-btn" onClick={() => setIsSidebarOpen(true)}>
+              <Menu size={24} />
+            </button>
+            <h2 className="topbar-title">Plaza Management System</h2>
+          </div>
+          <div className="topbar-user" style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
             <span style={{ fontSize: '0.875rem', color: 'var(--color-text-muted)', textTransform: 'capitalize' }}>
               {currentUser?.email || 'User'}
             </span>
@@ -60,12 +80,12 @@ export default function Layout({ children, currentUser, onLogout }) {
             </div>
             <button 
               onClick={onLogout}
-              className="btn btn-secondary" 
+              className="btn btn-secondary logout-btn" 
               style={{ padding: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem', marginLeft: '0.5rem' }}
               title="Logout"
             >
               <LogOut size={16} />
-              <span style={{ fontSize: '0.875rem' }}>Logout</span>
+              <span className="logout-text" style={{ fontSize: '0.875rem' }}>Logout</span>
             </button>
           </div>
         </header>
