@@ -176,12 +176,12 @@ export default function Summary() {
       </div>
 
       {/* Hidden Print Layout */}
-      <div style={{ display: 'none' }}>
-        <div ref={printRef} style={{ padding: '40px', fontFamily: 'system-ui, sans-serif' }}>
-          <style type="text/css" media="print">
-            {`
-              @page { size: A4 portrait; margin: 20mm; }
-              table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+      <div ref={printRef} className="print-summary-wrapper" style={{ display: 'none', padding: '40px', fontFamily: 'system-ui, sans-serif' }}>
+        <style type="text/css" media="print">
+          {`
+            @page { size: A4 portrait; margin: 20mm; }
+            .print-summary-wrapper { display: block !important; }
+            table { width: 100%; border-collapse: collapse; margin-top: 20px; }
               th, td { border: 1px solid #ddd; padding: 10px; text-align: left; }
               th { background-color: #f2f2f2; font-weight: bold; }
               tfoot td { background-color: #f9f9f9; font-weight: bold; }
@@ -231,7 +231,6 @@ export default function Summary() {
             )}
           </table>
         </div>
-      </div>
     </div>
   );
 }
