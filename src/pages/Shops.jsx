@@ -136,32 +136,31 @@ export default function Shops() {
     if (isBulkAdd) {
       const startSerial = parseInt(formData.get('startSerial'));
       const endSerial = parseInt(formData.get('endSerial'));
-      const prefix = formData.get('prefix') || '';
-      const backShopId = formData.get('backShopId') || null;
+      const side = formData.get('side') || 'Front';
       
       const newShops = [];
       for (let i = startSerial; i <= endSerial; i++) {
         newShops.push({
-          shopNumber: `${prefix}${i}`,
+          shopNumber: `${i}`,
           block: block,
           floor: floor,
           price: price,
           status: 'Available',
-          backShopId: backShopId
+          side: side
         });
       }
       if (newShops.length > 0) {
         await db.shops.bulkAdd(newShops);
       }
     } else {
-      const backShopId = formData.get('backShopId') || null;
+      const side = formData.get('side') || 'Front';
       const newShop = {
         shopNumber: formData.get('shopNumber'),
         block: block,
         floor: floor,
         price: price,
         status: 'Available',
-        backShopId: backShopId
+        side: side
       };
       await db.shops.add(newShop);
     }
@@ -373,7 +372,22 @@ export default function Shops() {
                                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.5rem' }}>
                                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '0.25rem' }}>
                                         <Store size={18} color="var(--color-text-muted)" />
-                                        <h4 style={{ margin: 0, fontSize: '1.125rem' }}>{shop.shopNumber}</h4>
+                                        <div>
+                                          <h4 style={{ margin: 0, fontSize: '1.125rem' }}>{shop.shopNumber}</h4>
+                                          {shop.side && (
+                                            <span style={{
+                                              fontSize: '0.65rem',
+                                              fontWeight: 600,
+                                              padding: '1px 6px',
+                                              borderRadius: '4px',
+                                              backgroundColor: shop.side === 'Front' ? '#eff6ff' : '#fdf4ff',
+                                              color: shop.side === 'Front' ? '#1d4ed8' : '#7e22ce',
+                                              border: `1px solid ${shop.side === 'Front' ? '#bfdbfe' : '#e9d5ff'}`
+                                            }}>
+                                              {shop.side === 'Front' ? '🏪 Front' : '🔙 Back'}
+                                            </span>
+                                          )}
+                                        </div>
                                       </div>
                                       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '0.35rem' }}>
                                         <span className={`badge ${shop.status === 'Available' ? 'badge-success' : 'badge-warning'}`} style={{ fontSize: '0.65rem' }}>
@@ -475,10 +489,6 @@ export default function Shops() {
                       <input type="number" name="endSerial" className="form-control" required min="1" placeholder="e.g. 20" />
                     </div>
                   </div>
-                  <div className="form-group">
-                    <label className="form-label">Optional Prefix (e.g. "B-", "A1-")</label>
-                    <input type="text" name="prefix" className="form-control" placeholder="Prefix before serial number" />
-                  </div>
                 </>
               ) : (
                 <div className="form-group">
@@ -514,13 +524,17 @@ export default function Shops() {
                 <input type="number" name="price" className="form-control" required min="0" step="0.01" />
               </div>
               <div className="form-group">
-                <label className="form-label">Back Shop (optional)</label>
-                <select name="backShopId" className="form-control">
-                  <option value="">-- No Back Shop --</option>
-                  {shops.map(s => (
-                    <option key={s.id} value={s.id}>#{s.shopNumber}</option>
-                  ))}
-                </select>
+                <label className="form-label">Shop Side</label>
+                <div style={{ display: 'flex', gap: '1.5rem', marginTop: '0.5rem' }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', fontWeight: 500 }}>
+                    <input type="radio" name="side" value="Front" defaultChecked style={{ accentColor: 'var(--color-primary)', width: '16px', height: '16px' }} />
+                    🏪 Front Side
+                  </label>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', fontWeight: 500 }}>
+                    <input type="radio" name="side" value="Back" style={{ accentColor: 'var(--color-primary)', width: '16px', height: '16px' }} />
+                    🔙 Back Side
+                  </label>
+                </div>
               </div>
               <div style={{ marginTop: '1.5rem', display: 'flex', justifyContent: 'flex-end', gap: '1rem' }}>
                 <button type="button" className="btn btn-secondary" onClick={() => setIsModalOpen(false)}>Cancel</button>
