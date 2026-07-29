@@ -289,18 +289,43 @@ export default function Shops() {
   const handleSavePrice = async (e, shop) => {
     e.stopPropagation();
     const newPrice = parseFloat(editingPrice[shop.id]);
-    if (!isNaN(newPrice) && newPrice >= 0) {
-      try {
-        await db.shops.update(shop.id, { price: newPrice });
-        if (shop.status === 'Occupied') {
-          const shopSale = sales.find(s => s.shopId === shop.id);
-          if (shopSale) {
-            await supabase.from('sales').update({ totalAmount: newPrice }).eq('id', shopSale.id);
-          }
+
+    // Dismiss edit mode if invalid
+    if (isNaN(newPrice) || newPrice < 0) {
+      setEditingPrice(prev => { const n = { ...prev }; delete n[shop.id]; return n; });
+      return;
+    }
+
+    // Hard warning
+    const oldPrice = shop.status === 'Occupied'
+      ? (sales.find(s => s.shopId === shop.id)?.totalAmount ?? shop.price)
+      : shop.price;
+
+    if (newPrice === parseFloat(oldPrice)) {
+      setEditingPrice(prev => { const n = { ...prev }; delete n[shop.id]; return n; });
+      return;
+    }
+
+    const warningMsg = shop.status === 'Occupied'
+      ? `⚠️ WARNING\n\nYou are changing the total sale amount for Shop ${shop.shopNumber}:\n\n  Old amount: Rs. ${Number(oldPrice).toLocaleString()}\n  New amount: Rs. ${newPrice.toLocaleString()}\n\nThis will recalculate the tenant's outstanding balance.\n\nAre you sure?`
+      : `⚠️ WARNING\n\nYou are changing the listed price for Shop ${shop.shopNumber}:\n\n  Old price: Rs. ${Number(oldPrice).toLocaleString()}\n  New price: Rs. ${newPrice.toLocaleString()}\n\nAre you sure?`;
+
+    const confirmed = window.confirm(warningMsg);
+    if (!confirmed) {
+      setEditingPrice(prev => { const n = { ...prev }; delete n[shop.id]; return n; });
+      return;
+    }
+
+    try {
+      await db.shops.update(shop.id, { price: newPrice });
+      if (shop.status === 'Occupied') {
+        const shopSale = sales.find(s => s.shopId === shop.id);
+        if (shopSale) {
+          await supabase.from('sales').update({ totalAmount: newPrice }).eq('id', shopSale.id);
         }
-      } catch (err) {
-        alert('Failed to update price: ' + err.message);
       }
+    } catch (err) {
+      alert('Failed to update price: ' + err.message);
     }
     setEditingPrice(prev => { const n = { ...prev }; delete n[shop.id]; return n; });
   };
