@@ -2,9 +2,11 @@ import { useState } from 'react';
 import { useSupabase } from '../hooks/useSupabase';
 import { useDb } from '../hooks/useDb';
 import { supabase } from '../supabaseClient';
+import { useProject } from '../contexts/ProjectContext';
 import { Settings, Plus, X, Trash2 } from 'lucide-react';
 
 export default function Setup() {
+  const { activeProject } = useProject();
   const db = useDb();
   const blocks = useSupabase('blocks') || [];
   const floors = useSupabase('floors') || [];
@@ -26,12 +28,84 @@ export default function Setup() {
     setNewFloor('');
   };
 
-  const handleDeleteBlock = async (id) => {
-    await db.blocks.delete(id);
+  const handleDeleteBlock = async (id, blockName) => {
+    const force = window.confirm(`WARNING: Deleting block "${blockName}" will permanently destroy ALL shops inside it, including their tenants, sales, and payment history!\n\nAre you absolutely sure you want to FORCE DELETE this block?`);
+    if (!force) return;
+    
+    try {
+      // Find all shops in this block for the current project
+      const { data: shopsInBlock } = await supabase
+        .from('shops')
+        .select('id')
+        .eq('project_id', activeProject.id)
+        .eq('block', blockName);
+        
+      if (shopsInBlock && shopsInBlock.length > 0) {
+        const shopIds = shopsInBlock.map(s => s.id);
+        
+        // Find all sales for these shops
+        const { data: salesInBlock } = await supabase
+          .from('sales')
+          .select('id')
+          .eq('project_id', activeProject.id)
+          .in('shopId', shopIds);
+          
+        if (salesInBlock && salesInBlock.length > 0) {
+          const saleIds = salesInBlock.map(s => s.id);
+          
+          await supabase.from('payments').delete().in('saleId', saleIds);
+          await supabase.from('installments').delete().in('sale_id', saleIds);
+          await supabase.from('sales').delete().in('id', saleIds);
+        }
+        
+        await supabase.from('shops').delete().in('id', shopIds);
+      }
+      
+      await db.blocks.delete(id);
+      alert(`Block "${blockName}" and all its contents were successfully deleted.`);
+    } catch (err) {
+      console.error(err);
+      alert("Failed to force delete block. Error: " + err.message);
+    }
   };
 
-  const handleDeleteFloor = async (id) => {
-    await db.floors.delete(id);
+  const handleDeleteFloor = async (id, floorName) => {
+    const force = window.confirm(`WARNING: Deleting floor "${floorName}" will permanently destroy ALL shops on this floor, including their tenants, sales, and payment history!\n\nAre you absolutely sure you want to FORCE DELETE this floor?`);
+    if (!force) return;
+    
+    try {
+      const { data: shopsInFloor } = await supabase
+        .from('shops')
+        .select('id')
+        .eq('project_id', activeProject.id)
+        .eq('floor', floorName);
+        
+      if (shopsInFloor && shopsInFloor.length > 0) {
+        const shopIds = shopsInFloor.map(s => s.id);
+        
+        const { data: salesInFloor } = await supabase
+          .from('sales')
+          .select('id')
+          .eq('project_id', activeProject.id)
+          .in('shopId', shopIds);
+          
+        if (salesInFloor && salesInFloor.length > 0) {
+          const saleIds = salesInFloor.map(s => s.id);
+          
+          await supabase.from('payments').delete().in('saleId', saleIds);
+          await supabase.from('installments').delete().in('sale_id', saleIds);
+          await supabase.from('sales').delete().in('id', saleIds);
+        }
+        
+        await supabase.from('shops').delete().in('id', shopIds);
+      }
+      
+      await db.floors.delete(id);
+      alert(`Floor "${floorName}" and all its contents were successfully deleted.`);
+    } catch (err) {
+      console.error(err);
+      alert("Failed to force delete floor. Error: " + err.message);
+    }
   };
 
   return (
@@ -63,7 +137,7 @@ export default function Setup() {
               blocks.map(block => (
                 <li key={block.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '0.5rem 0', borderBottom: '1px solid var(--color-border)' }}>
                   <span>{block.name}</span>
-                  <button onClick={() => handleDeleteBlock(block.id)} style={{ color: '#ef4444' }}><Trash2 size={16} /></button>
+                  <button onClick={() => handleDeleteBlock(block.id, block.name)} style={{ color: '#ef4444' }}><Trash2 size={16} /></button>
                 </li>
               ))
             )}
@@ -92,7 +166,7 @@ export default function Setup() {
               floors.map(floor => (
                 <li key={floor.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '0.5rem 0', borderBottom: '1px solid var(--color-border)' }}>
                   <span>{floor.name}</span>
-                  <button onClick={() => handleDeleteFloor(floor.id)} style={{ color: '#ef4444' }}><Trash2 size={16} /></button>
+                  <button onClick={() => handleDeleteFloor(floor.id, floor.name)} style={{ color: '#ef4444' }}><Trash2 size={16} /></button>
                 </li>
               ))
             )}
