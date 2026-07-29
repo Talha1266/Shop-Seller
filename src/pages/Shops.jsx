@@ -98,6 +98,11 @@ export default function Shops() {
             
             // Delete the sale
             await db.sales.delete(shopSale.id);
+            
+            // Delete the tenant
+            if (shopSale.tenantId) {
+              await supabase.from('tenants').delete().eq('id', shopSale.tenantId);
+            }
           }
 
           // Delete the shop itself
@@ -170,6 +175,7 @@ export default function Shops() {
         const blockSales = sales.filter(s => shopIds.includes(s.shopId));
         if (blockSales.length > 0) {
           const saleIds = blockSales.map(s => s.id);
+          const tenantIds = blockSales.map(s => s.tenantId).filter(Boolean);
           
           // Delete payments and installments
           await supabase.from('payments').delete().in('saleId', saleIds);
@@ -177,6 +183,11 @@ export default function Shops() {
           
           // Delete sales
           await supabase.from('sales').delete().in('id', saleIds);
+          
+          // Delete tenants
+          if (tenantIds.length > 0) {
+            await supabase.from('tenants').delete().in('id', tenantIds);
+          }
         }
         
         // Delete shops

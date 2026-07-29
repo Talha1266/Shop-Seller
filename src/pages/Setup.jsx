@@ -46,16 +46,21 @@ export default function Setup() {
         // Find all sales for these shops
         const { data: salesInBlock } = await supabase
           .from('sales')
-          .select('id')
+          .select('id, tenantId')
           .eq('project_id', activeProject.id)
           .in('shopId', shopIds);
           
         if (salesInBlock && salesInBlock.length > 0) {
           const saleIds = salesInBlock.map(s => s.id);
+          const tenantIds = salesInBlock.map(s => s.tenantId).filter(Boolean);
           
           await supabase.from('payments').delete().in('saleId', saleIds);
           await supabase.from('installments').delete().in('sale_id', saleIds);
           await supabase.from('sales').delete().in('id', saleIds);
+          
+          if (tenantIds.length > 0) {
+            await supabase.from('tenants').delete().in('id', tenantIds);
+          }
         }
         
         await supabase.from('shops').delete().in('id', shopIds);
@@ -85,16 +90,21 @@ export default function Setup() {
         
         const { data: salesInFloor } = await supabase
           .from('sales')
-          .select('id')
+          .select('id, tenantId')
           .eq('project_id', activeProject.id)
           .in('shopId', shopIds);
           
         if (salesInFloor && salesInFloor.length > 0) {
           const saleIds = salesInFloor.map(s => s.id);
+          const tenantIds = salesInFloor.map(s => s.tenantId).filter(Boolean);
           
           await supabase.from('payments').delete().in('saleId', saleIds);
           await supabase.from('installments').delete().in('sale_id', saleIds);
           await supabase.from('sales').delete().in('id', saleIds);
+          
+          if (tenantIds.length > 0) {
+            await supabase.from('tenants').delete().in('id', tenantIds);
+          }
         }
         
         await supabase.from('shops').delete().in('id', shopIds);
