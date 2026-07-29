@@ -85,10 +85,32 @@ export default function Shops() {
 
   const handleDeleteShop = async (e, shop) => {
     e.stopPropagation();
+    
     if (shop.status === 'Occupied') {
-      alert("Cannot delete an occupied shop. Remove the tenant first.");
+      const force = window.confirm(`WARNING: Shop ${shop.shopNumber} is SOLD OUT!\n\nDeleting this shop will permanently erase its sale record, tenant association, and all payment history.\n\nAre you absolutely sure you want to FORCE DELETE it?`);
+      if (force) {
+        try {
+          const shopSale = sales.find(s => s.shopId === shop.id);
+          if (shopSale) {
+            // Delete payments and installments tied to this sale
+            await supabase.from('payments').delete().eq('saleId', shopSale.id);
+            await supabase.from('installments').delete().eq('sale_id', shopSale.id);
+            
+            // Delete the sale
+            await db.sales.delete(shopSale.id);
+          }
+
+          // Delete the shop itself
+          await db.shops.delete(shop.id);
+          alert(`Shop ${shop.shopNumber} and all its records have been deleted.`);
+        } catch (err) {
+          console.error(err);
+          alert("Failed to force delete shop. Error: " + err.message);
+        }
+      }
       return;
     }
+
     if (window.confirm(`Are you sure you want to delete Shop ${shop.shopNumber}?`)) {
       await db.shops.delete(shop.id);
     }
