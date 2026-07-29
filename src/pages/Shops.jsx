@@ -268,13 +268,25 @@ export default function Shops() {
           uniqueBlocks.map(blockName => {
             const blockShops = shops.filter(s => s.block === blockName);
             const isBlockOpen = expandedBlocks[blockName];
-            const floorOrder = { 'G.F': 1, 'F.F': 2 };
+            const floorOrder = {
+                // Ground floor variants
+                'G.F': 1, 'GF': 1, 'GROUND FLOOR': 1, 'GROUND': 1, 'GROUND F': 1,
+                'G F': 1, 'BASEMENT': 0,
+                // First floor variants
+                'F.F': 2, 'FF': 2, 'FIRST FLOOR': 2, 'FIRST': 2, '1ST FLOOR': 2, '1F': 2, 'FLOOR 1': 2,
+                // Second floor variants
+                'S.F': 3, 'SF': 3, 'SECOND FLOOR': 3, 'SECOND': 3, '2ND FLOOR': 3, '2F': 3, 'FLOOR 2': 3,
+                // Third floor variants
+                'T.F': 4, 'TF': 4, 'THIRD FLOOR': 4, 'THIRD': 4, '3RD FLOOR': 4, '3F': 4, 'FLOOR 3': 4,
+              };
+            const getFloorOrder = (name) => floorOrder[(name || '').toUpperCase()] ?? 99;
             const uniqueFloors = Array.from(new Set(blockShops.map(s => s.floor))).sort((a, b) => {
-              const orderA = floorOrder[a] || 99;
-              const orderB = floorOrder[b] || 99;
+              const orderA = getFloorOrder(a);
+              const orderB = getFloorOrder(b);
               if (orderA !== orderB) return orderA - orderB;
               return a.localeCompare(b);
             });
+
 
             return (
               <div key={blockName} className="card" style={{ padding: 0, overflow: 'hidden' }}>
