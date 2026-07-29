@@ -133,39 +133,67 @@ export default function Shops() {
     const floor = formData.get('floor');
     const price = parseFloat(formData.get('price'));
 
-    if (isBulkAdd) {
-      const startSerial = parseInt(formData.get('startSerial'));
-      const endSerial = parseInt(formData.get('endSerial'));
-      const side = formData.get('side') || 'Front';
-      
-      const newShops = [];
-      for (let i = startSerial; i <= endSerial; i++) {
-        newShops.push({
-          shopNumber: `${i}`,
-          block: block,
-          floor: floor,
-          price: price,
-          status: 'Available',
-          side: side
-        });
-      }
-      if (newShops.length > 0) {
-        await db.shops.bulkAdd(newShops);
-      }
-    } else {
-      const side = formData.get('side') || 'Front';
-      const newShop = {
-        shopNumber: formData.get('shopNumber'),
-        block: block,
-        floor: floor,
-        price: price,
-        status: 'Available',
-        side: side
-      };
-      await db.shops.add(newShop);
+    if (!block || !floor) {
+      alert('Please select a Block and a Floor.');
+      return;
     }
-    
-    setIsModalOpen(false);
+    if (isNaN(price) || price < 0) {
+      alert('Please enter a valid price.');
+      return;
+    }
+
+    try {
+      if (isBulkAdd) {
+        const startSerial = parseInt(formData.get('startSerial'));
+        const endSerial = parseInt(formData.get('endSerial'));
+        const side = formData.get('side') || 'Front';
+
+        if (isNaN(startSerial) || isNaN(endSerial) || startSerial > endSerial) {
+          alert('Please enter a valid serial number range (Start must be ≤ End).');
+          return;
+        }
+
+        const newShops = [];
+        for (let i = startSerial; i <= endSerial; i++) {
+          newShops.push({
+            shopNumber: `${i}`,
+            block: block,
+            floor: floor,
+            price: price,
+            status: 'Available',
+            side: side
+          });
+        }
+
+        if (newShops.length > 0) {
+          await db.shops.bulkAdd(newShops);
+          alert(`✅ ${newShops.length} shop(s) added successfully!`);
+        }
+      } else {
+        const shopNumber = formData.get('shopNumber');
+        const side = formData.get('side') || 'Front';
+
+        if (!shopNumber) {
+          alert('Please enter a shop number.');
+          return;
+        }
+
+        const newShop = {
+          shopNumber,
+          block,
+          floor,
+          price,
+          status: 'Available',
+          side
+        };
+        await db.shops.add(newShop);
+      }
+
+      setIsModalOpen(false);
+    } catch (err) {
+      console.error('Failed to add shop(s):', err);
+      alert('Failed to add shop(s). Error: ' + (err.message || JSON.stringify(err)));
+    }
   };
 
   const handleDeleteBlock = async (e, blockName) => {
