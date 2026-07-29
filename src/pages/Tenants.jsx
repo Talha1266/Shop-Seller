@@ -122,7 +122,8 @@ export default function Tenants() {
       };
 
       await db.sales.add(newSale);
-      await db.shops.update(selectedShopId, { status: 'Occupied' });
+      // Update shop status AND sync its price to the actual sale amount
+      await db.shops.update(selectedShopId, { status: 'Occupied', price: newSale.totalAmount });
 
       setSelectedShopId('');
       setTotalAmount('');
