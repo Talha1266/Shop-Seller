@@ -54,6 +54,10 @@ export default function Setup() {
           const saleIds = salesInBlock.map(s => s.id);
           const tenantIds = salesInBlock.map(s => s.tenantId).filter(Boolean);
           
+          if (tenantIds.length > 0) {
+            await supabase.from('payments').delete().in('tenantId', tenantIds);
+            await supabase.from('documents').delete().in('tenantId', tenantIds);
+          }
           await supabase.from('payments').delete().in('saleId', saleIds);
           await supabase.from('installments').delete().in('sale_id', saleIds);
           await supabase.from('sales').delete().in('id', saleIds);
@@ -98,6 +102,10 @@ export default function Setup() {
           const saleIds = salesInFloor.map(s => s.id);
           const tenantIds = salesInFloor.map(s => s.tenantId).filter(Boolean);
           
+          if (tenantIds.length > 0) {
+            await supabase.from('payments').delete().in('tenantId', tenantIds);
+            await supabase.from('documents').delete().in('tenantId', tenantIds);
+          }
           await supabase.from('payments').delete().in('saleId', saleIds);
           await supabase.from('installments').delete().in('sale_id', saleIds);
           await supabase.from('sales').delete().in('id', saleIds);

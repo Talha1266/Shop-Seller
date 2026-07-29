@@ -92,7 +92,12 @@ export default function Shops() {
         try {
           const shopSale = sales.find(s => s.shopId === shop.id);
           if (shopSale) {
-            // Delete payments and installments tied to this sale
+            // Delete payments and installments tied to this tenant
+            if (shopSale.tenantId) {
+              await supabase.from('payments').delete().eq('tenantId', shopSale.tenantId);
+              await supabase.from('documents').delete().eq('tenantId', shopSale.tenantId);
+            }
+            // Fallback for older data that might only have saleId
             await supabase.from('payments').delete().eq('saleId', shopSale.id);
             await supabase.from('installments').delete().eq('sale_id', shopSale.id);
             
@@ -177,7 +182,11 @@ export default function Shops() {
           const saleIds = blockSales.map(s => s.id);
           const tenantIds = blockSales.map(s => s.tenantId).filter(Boolean);
           
-          // Delete payments and installments
+          // Delete payments, documents, and installments
+          if (tenantIds.length > 0) {
+            await supabase.from('payments').delete().in('tenantId', tenantIds);
+            await supabase.from('documents').delete().in('tenantId', tenantIds);
+          }
           await supabase.from('payments').delete().in('saleId', saleIds);
           await supabase.from('installments').delete().in('sale_id', saleIds);
           
