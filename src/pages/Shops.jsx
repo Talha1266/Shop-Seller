@@ -155,6 +155,47 @@ export default function Shops() {
     setIsModalOpen(false);
   };
 
+  const handleDeleteBlock = async (e, blockName) => {
+    e.stopPropagation();
+    const force = window.confirm(`WARNING: Deleting block "${blockName}" will permanently destroy ALL shops inside it, including their tenants, sales, and payment history!\n\nAre you absolutely sure you want to FORCE DELETE this block?`);
+    if (!force) return;
+    
+    try {
+      // Find all shops in this block
+      const blockShops = shops.filter(s => s.block === blockName);
+      if (blockShops.length > 0) {
+        const shopIds = blockShops.map(s => s.id);
+        
+        // Find sales
+        const blockSales = sales.filter(s => shopIds.includes(s.shopId));
+        if (blockSales.length > 0) {
+          const saleIds = blockSales.map(s => s.id);
+          
+          // Delete payments and installments
+          await supabase.from('payments').delete().in('saleId', saleIds);
+          await supabase.from('installments').delete().in('sale_id', saleIds);
+          
+          // Delete sales
+          await supabase.from('sales').delete().in('id', saleIds);
+        }
+        
+        // Delete shops
+        await supabase.from('shops').delete().in('id', shopIds);
+      }
+      
+      // Also delete from setup blocks if it exists there
+      const setupBlock = blocks.find(b => b.name === blockName);
+      if (setupBlock) {
+        await db.blocks.delete(setupBlock.id);
+      }
+      
+      alert(`Block "${blockName}" and all its shops have been deleted.`);
+    } catch (err) {
+      console.error(err);
+      alert("Failed to force delete block. Error: " + err.message);
+    }
+  };
+
   // Group shops by Block -> Floor
   const uniqueBlocks = Array.from(new Set(shops.map(s => s.block))).sort();
 
@@ -208,6 +249,14 @@ export default function Shops() {
                         Pending: Rs. {calculatePendingForShops(blockShops).toLocaleString()}
                       </span>
                     )}
+                    <button 
+                      onClick={(e) => handleDeleteBlock(e, blockName)}
+                      className="icon-btn" 
+                      title="Force Delete Block"
+                      style={{ color: 'var(--color-error)' }}
+                    >
+                      <Trash2 size={20} />
+                    </button>
                   </div>
                 </div>
 
