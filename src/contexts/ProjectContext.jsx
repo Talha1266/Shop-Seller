@@ -97,6 +97,21 @@ export function ProjectProvider({ children }) {
     }
   };
 
+  const forceDeleteProject = async (projectId) => {
+    // Delete all child tables in reverse dependency order
+    await supabase.from('payments').delete().eq('project_id', projectId);
+    await supabase.from('installments').delete().eq('project_id', projectId);
+    await supabase.from('sales').delete().eq('project_id', projectId);
+    await supabase.from('documents').delete().eq('project_id', projectId);
+    await supabase.from('tenants').delete().eq('project_id', projectId);
+    await supabase.from('shops').delete().eq('project_id', projectId);
+    await supabase.from('floors').delete().eq('project_id', projectId);
+    await supabase.from('blocks').delete().eq('project_id', projectId);
+    
+    // Finally delete the project
+    await deleteProject(projectId);
+  };
+
   return (
     <ProjectContext.Provider value={{ 
       projects, 
@@ -104,6 +119,7 @@ export function ProjectProvider({ children }) {
       changeActiveProject, 
       createProject,
       deleteProject,
+      forceDeleteProject,
       loading 
     }}>
       {children}

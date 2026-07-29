@@ -1,10 +1,10 @@
 import { useState, useMemo } from 'react';
 import { useProject } from '../contexts/ProjectContext';
 import { useSupabase } from '../hooks/useSupabase';
-import { Building2, Store, Users, DollarSign, ChevronRight, Plus, X, Trash2 } from 'lucide-react';
+import { Building2, Store, Users, DollarSign, ChevronRight, Plus, X, Trash2, AlertTriangle } from 'lucide-react';
 
 export default function ProjectsDashboard() {
-  const { projects, changeActiveProject, createProject, deleteProject } = useProject();
+  const { projects, changeActiveProject, createProject, deleteProject, forceDeleteProject } = useProject();
   const [isCreatingProject, setIsCreatingProject] = useState(false);
   const [newProjectName, setNewProjectName] = useState('');
   
@@ -54,16 +54,24 @@ export default function ProjectsDashboard() {
     }
   };
 
-  const handleDeleteProject = async (e, projectId) => {
+  const handleDeleteProject = async (e, projectId, projectName) => {
     e.stopPropagation();
-    if (!window.confirm("Are you sure you want to delete this project? This action cannot be undone.")) return;
+    if (!window.confirm(`Are you sure you want to delete ${projectName}? This action cannot be undone.`)) return;
     
     try {
       await deleteProject(projectId);
     } catch (err) {
       console.error(err);
       if (err.code === '23503') { // Foreign key constraint error
-        alert("Cannot delete this project because it contains active shops, tenants, or financial records. Please delete those records first.");
+        const force = window.confirm(`WARNING: ${projectName} contains active shops, tenants, or financial records!\n\nIf you proceed, ALL data inside this project will be permanently destroyed. Are you absolutely sure you want to force delete it?`);
+        if (force) {
+          try {
+            await forceDeleteProject(projectId);
+          } catch (forceErr) {
+            console.error(forceErr);
+            alert("Failed to force delete project. Error: " + forceErr.message);
+          }
+        }
       } else {
         alert("Failed to delete project. Error: " + err.message);
       }
@@ -157,7 +165,7 @@ export default function ProjectsDashboard() {
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                   <button 
-                    onClick={(e) => handleDeleteProject(e, project.id)}
+                    onClick={(e) => handleDeleteProject(e, project.id, project.name)}
                     className="icon-btn" 
                     title="Delete Project"
                     style={{ color: 'var(--color-error)' }}
