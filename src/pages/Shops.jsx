@@ -13,6 +13,7 @@ export default function Shops() {
   
   const [expandedBlocks, setExpandedBlocks] = useState({});
   const [expandedFloors, setExpandedFloors] = useState({});
+  const [editingPrice, setEditingPrice] = useState({});
 
   const shops = useSupabase('shops') || [];
   const blocks = useSupabase('blocks') || [];
@@ -285,6 +286,25 @@ export default function Shops() {
     }
   };
 
+  const handleSavePrice = async (e, shop) => {
+    e.stopPropagation();
+    const newPrice = parseFloat(editingPrice[shop.id]);
+    if (!isNaN(newPrice) && newPrice >= 0) {
+      try {
+        await db.shops.update(shop.id, { price: newPrice });
+        if (shop.status === 'Occupied') {
+          const shopSale = sales.find(s => s.shopId === shop.id);
+          if (shopSale) {
+            await supabase.from('sales').update({ totalAmount: newPrice }).eq('id', shopSale.id);
+          }
+        }
+      } catch (err) {
+        alert('Failed to update price: ' + err.message);
+      }
+    }
+    setEditingPrice(prev => { const n = { ...prev }; delete n[shop.id]; return n; });
+  };
+
   // Group shops by Block -> Floor
   const uniqueBlocks = Array.from(new Set(shops.map(s => s.block))).sort();
 
@@ -485,17 +505,57 @@ export default function Shops() {
                                       <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
                                         {shop.status === 'Occupied' ? (
                                           <>
-                                            <p style={{ margin: 0, fontSize: '0.875rem', color: 'var(--color-text-muted)', fontWeight: 500 }}>
-                                              Total: Rs. {totalAllocatedAmount.toLocaleString()}
-                                            </p>
+                                            {editingPrice[shop.id] !== undefined ? (
+                                              <input
+                                                type="number"
+                                                autoFocus
+                                                value={editingPrice[shop.id]}
+                                                onClick={e => e.stopPropagation()}
+                                                onChange={e => setEditingPrice(prev => ({ ...prev, [shop.id]: e.target.value }))}
+                                                onBlur={e => handleSavePrice(e, shop)}
+                                                onKeyDown={e => {
+                                                  if (e.key === 'Enter') handleSavePrice(e, shop);
+                                                  if (e.key === 'Escape') setEditingPrice(prev => { const n = {...prev}; delete n[shop.id]; return n; });
+                                                }}
+                                                style={{ width: '100%', fontSize: '0.8rem', padding: '2px 6px', border: '1px solid var(--color-primary)', borderRadius: '4px', outline: 'none' }}
+                                              />
+                                            ) : (
+                                              <p
+                                                onClick={e => { e.stopPropagation(); setEditingPrice(prev => ({ ...prev, [shop.id]: totalAllocatedAmount })); }}
+                                                title="Click to edit total amount"
+                                                style={{ margin: 0, fontSize: '0.875rem', color: 'var(--color-text-muted)', fontWeight: 500, cursor: 'text', borderBottom: '1px dashed #94a3b8', display: 'inline-block' }}
+                                              >
+                                                Total: Rs. {totalAllocatedAmount.toLocaleString()}
+                                              </p>
+                                            )}
                                             <p style={{ margin: 0, fontSize: '0.875rem', color: balance > 0 ? '#ef4444' : 'var(--color-success)', fontWeight: 600 }}>
                                               Bal: Rs. {balance.toLocaleString()}
                                             </p>
                                           </>
                                         ) : (
-                                          <p style={{ margin: 0, fontSize: '0.875rem', color: 'var(--color-text-muted)', fontWeight: 500 }}>
-                                            Price: Rs. {shop.price.toLocaleString()}
-                                          </p>
+                                          editingPrice[shop.id] !== undefined ? (
+                                            <input
+                                              type="number"
+                                              autoFocus
+                                              value={editingPrice[shop.id]}
+                                              onClick={e => e.stopPropagation()}
+                                              onChange={e => setEditingPrice(prev => ({ ...prev, [shop.id]: e.target.value }))}
+                                              onBlur={e => handleSavePrice(e, shop)}
+                                              onKeyDown={e => {
+                                                if (e.key === 'Enter') handleSavePrice(e, shop);
+                                                if (e.key === 'Escape') setEditingPrice(prev => { const n = {...prev}; delete n[shop.id]; return n; });
+                                              }}
+                                              style={{ width: '100%', fontSize: '0.8rem', padding: '2px 6px', border: '1px solid var(--color-primary)', borderRadius: '4px', outline: 'none' }}
+                                            />
+                                          ) : (
+                                            <p
+                                              onClick={e => { e.stopPropagation(); setEditingPrice(prev => ({ ...prev, [shop.id]: shop.price })); }}
+                                              title="Click to edit price"
+                                              style={{ margin: 0, fontSize: '0.875rem', color: 'var(--color-text-muted)', fontWeight: 500, cursor: 'text', borderBottom: '1px dashed #94a3b8', display: 'inline-block' }}
+                                            >
+                                              Price: Rs. {shop.price.toLocaleString()}
+                                            </p>
+                                          )
                                         )}
                                       </div>
                                       {shop.status === 'Available' ? (
