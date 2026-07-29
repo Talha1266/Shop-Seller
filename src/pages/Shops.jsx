@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useSupabase } from '../hooks/useSupabase';
 import { useDb } from '../hooks/useDb';
 import { supabase } from '../supabaseClient';
-import { Plus, X, Layers, ChevronDown, ChevronRight, Store, Trash2 } from 'lucide-react';
+import { Plus, X, Layers, ChevronDown, ChevronRight, Store, Trash2, UserMinus } from 'lucide-react';
 
 export default function Shops() {
   const db = useDb();
@@ -247,6 +247,44 @@ export default function Shops() {
     }
   };
 
+  const handleRemoveTenant = async (e, shop) => {
+    e.stopPropagation();
+
+    const shopSale = sales.find(s => s.shopId === shop.id);
+    const tenant = shopSale ? tenants.find(t => t.id === shopSale.tenantId) : null;
+    const tenantName = tenant?.name || 'this tenant';
+
+    const step1 = window.confirm(
+      `⚠️ WARNING\n\nYou are about to REMOVE "${tenantName}" from Shop ${shop.shopNumber}.\n\nThis will permanently delete:\n  • The tenant record\n  • The sale / agreement\n  • All payment receipts\n  • All documents\n\nThe shop will become VACANT again.\n\nAre you sure you want to continue?`
+    );
+    if (!step1) return;
+
+    const step2 = window.confirm(
+      `🔴 FINAL CONFIRMATION\n\nThis CANNOT be undone.\n\nPermanently remove "${tenantName}" and ALL their records for Shop ${shop.shopNumber}?`
+    );
+    if (!step2) return;
+
+    try {
+      if (shopSale) {
+        if (shopSale.tenantId) {
+          await supabase.from('payments').delete().eq('tenantId', shopSale.tenantId);
+          await supabase.from('documents').delete().eq('tenantId', shopSale.tenantId);
+        }
+        await supabase.from('payments').delete().eq('saleId', shopSale.id);
+        await supabase.from('installments').delete().eq('sale_id', shopSale.id);
+        await db.sales.delete(shopSale.id);
+        if (shopSale.tenantId) {
+          await supabase.from('tenants').delete().eq('id', shopSale.tenantId);
+        }
+      }
+      await db.shops.update(shop.id, { status: 'Available' });
+      alert(`✅ "${tenantName}" removed. Shop ${shop.shopNumber} is now vacant.`);
+    } catch (err) {
+      console.error(err);
+      alert('Failed to remove tenant. Error: ' + err.message);
+    }
+  };
+
   // Group shops by Block -> Floor
   const uniqueBlocks = Array.from(new Set(shops.map(s => s.block))).sort();
 
@@ -460,17 +498,29 @@ export default function Shops() {
                                           </p>
                                         )}
                                       </div>
-                                      {shop.status === 'Available' && (
-                                        <button 
+                                      {shop.status === 'Available' ? (
+                                        <button
                                           onClick={(e) => handleDeleteShop(e, shop)}
-                                          style={{ 
-                                            background: 'none', border: 'none', cursor: 'pointer', 
+                                          style={{
+                                            background: 'none', border: 'none', cursor: 'pointer',
                                             color: '#ef4444', padding: '4px', borderRadius: '4px',
                                             display: 'flex', alignItems: 'center', justifyContent: 'center'
                                           }}
                                           title="Delete Shop"
                                         >
                                           <Trash2 size={16} />
+                                        </button>
+                                      ) : (
+                                        <button
+                                          onClick={(e) => handleRemoveTenant(e, shop)}
+                                          style={{
+                                            background: 'none', border: 'none', cursor: 'pointer',
+                                            color: '#dc2626', padding: '4px', borderRadius: '4px',
+                                            display: 'flex', alignItems: 'center', justifyContent: 'center'
+                                          }}
+                                          title="Remove Tenant & Vacate Shop"
+                                        >
+                                          <UserMinus size={16} />
                                         </button>
                                       )}
                                     </div>
