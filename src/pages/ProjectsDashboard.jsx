@@ -1,10 +1,10 @@
 import { useState, useMemo } from 'react';
 import { useProject } from '../contexts/ProjectContext';
 import { useSupabase } from '../hooks/useSupabase';
-import { Building2, Store, Users, DollarSign, ChevronRight, Plus, X } from 'lucide-react';
+import { Building2, Store, Users, DollarSign, ChevronRight, Plus, X, Trash2 } from 'lucide-react';
 
 export default function ProjectsDashboard() {
-  const { projects, changeActiveProject, createProject } = useProject();
+  const { projects, changeActiveProject, createProject, deleteProject } = useProject();
   const [isCreatingProject, setIsCreatingProject] = useState(false);
   const [newProjectName, setNewProjectName] = useState('');
   
@@ -51,6 +51,22 @@ export default function ProjectsDashboard() {
     } catch (err) {
       console.error(err);
       alert("Failed to create project. Error: " + err.message);
+    }
+  };
+
+  const handleDeleteProject = async (e, projectId) => {
+    e.stopPropagation();
+    if (!window.confirm("Are you sure you want to delete this project? This action cannot be undone.")) return;
+    
+    try {
+      await deleteProject(projectId);
+    } catch (err) {
+      console.error(err);
+      if (err.code === '23503') { // Foreign key constraint error
+        alert("Cannot delete this project because it contains active shops, tenants, or financial records. Please delete those records first.");
+      } else {
+        alert("Failed to delete project. Error: " + err.message);
+      }
     }
   };
 
@@ -139,7 +155,17 @@ export default function ProjectsDashboard() {
                   </div>
                   <h2 style={{ fontSize: '1.25rem', fontWeight: 'bold' }}>{project.name}</h2>
                 </div>
-                <ChevronRight size={20} color="var(--color-text-muted)" />
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <button 
+                    onClick={(e) => handleDeleteProject(e, project.id)}
+                    className="icon-btn" 
+                    title="Delete Project"
+                    style={{ color: 'var(--color-error)' }}
+                  >
+                    <Trash2 size={20} />
+                  </button>
+                  <ChevronRight size={20} color="var(--color-text-muted)" />
+                </div>
               </div>
               
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>

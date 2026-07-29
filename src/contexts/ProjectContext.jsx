@@ -83,12 +83,27 @@ export function ProjectProvider({ children }) {
     return data;
   };
 
+  const deleteProject = async (projectId) => {
+    const { error } = await supabase
+      .from('projects')
+      .delete()
+      .eq('id', projectId);
+      
+    if (error) throw error;
+    
+    if (activeProject?.id === projectId) {
+      setActiveProject(null);
+      localStorage.removeItem('activeProjectId');
+    }
+  };
+
   return (
     <ProjectContext.Provider value={{ 
       projects, 
       activeProject, 
       changeActiveProject, 
       createProject,
+      deleteProject,
       loading 
     }}>
       {children}
