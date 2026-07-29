@@ -13,14 +13,13 @@ export default function Tenants() {
   
   const location = useLocation();
   const navigate = useNavigate();
-  const [allocatedShops, setAllocatedShops] = useState([{ shopId: '', totalAmount: '' }]);
+  const [selectedShopId, setSelectedShopId] = useState('');
+  const [totalAmount, setTotalAmount] = useState('');
 
   useEffect(() => {
     if (location.state?.preSelectShopId) {
-      setAllocatedShops([{ shopId: location.state.preSelectShopId.toString(), totalAmount: '' }]);
+      setSelectedShopId(location.state.preSelectShopId.toString());
       setIsModalOpen(true);
-      
-      // Clear state so it doesn't auto-open on refresh
       const state = { ...location.state };
       delete state.preSelectShopId;
       navigate(location.pathname, { state, replace: true });
@@ -98,39 +97,40 @@ export default function Tenants() {
   const handleAddTenant = async (e) => {
     e.preventDefault();
     const formData = new FormData(e.target);
+
+    if (!selectedShopId) {
+      alert('Please select a shop.');
+      return;
+    }
+
     const newTenant = {
       name: formData.get('name'),
       cnic: formData.get('cnic'),
       mobile: formData.get('mobile')
     };
-    
-    // Add Tenant
-    const tenantId = await db.tenants.add(newTenant);
-    const dateOfAllocation = formData.get('date');
-    
-    // Allocate Shops
-    const globalAdvance = parseFloat(formData.get('globalAdvancePayment') || 0);
-    let isFirstShop = true;
-    
-    for (const shopAlloc of allocatedShops) {
-      if (!shopAlloc.shopId) continue;
-      
+
+    try {
+      const tenantId = await db.tenants.add(newTenant);
+
       const newSale = {
-        shopId: shopAlloc.shopId,
+        shopId: selectedShopId,
         tenantId: tenantId,
-        date: dateOfAllocation,
-        totalAmount: parseFloat(shopAlloc.totalAmount),
-        advancePayment: isFirstShop ? globalAdvance : 0,
+        date: formData.get('date'),
+        totalAmount: parseFloat(formData.get('totalAmount')),
+        advancePayment: parseFloat(formData.get('advancePayment') || 0),
         isCompleted: false
       };
-      
+
       await db.sales.add(newSale);
-      await db.shops.update(shopAlloc.shopId, { status: 'Occupied' });
-      isFirstShop = false;
+      await db.shops.update(selectedShopId, { status: 'Occupied' });
+
+      setSelectedShopId('');
+      setTotalAmount('');
+      setIsModalOpen(false);
+    } catch (err) {
+      console.error('Error registering tenant:', err);
+      alert('Failed to register tenant. Error: ' + err.message);
     }
-    
-    setAllocatedShops([{ shopId: '', totalAmount: '' }]);
-    setIsModalOpen(false);
   };
 
   // --- Documents Logic ---
@@ -256,76 +256,51 @@ export default function Tenants() {
               </div>
 
               <h3 style={{ fontSize: '1rem', marginTop: '1.5rem', marginBottom: '1rem', borderBottom: '1px solid var(--color-border)', paddingBottom: '0.5rem' }}>Shop Allocation Details</h3>
+
               <div className="form-group">
                 <label className="form-label">Date of Allocation</label>
                 <input type="date" name="date" className="form-control" required defaultValue={new Date().toISOString().split('T')[0]} />
               </div>
-              
-              {allocatedShops.map((shopAlloc, idx) => (
-                <div key={idx} style={{ padding: '1rem', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)', marginBottom: '1rem', backgroundColor: '#f8fafc' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
-                    <h4 style={{ margin: 0, fontSize: '0.875rem' }}>Shop {idx + 1}</h4>
-                    {allocatedShops.length > 1 && (
-                      <button 
-                        type="button" 
-                        onClick={() => setAllocatedShops(allocatedShops.filter((_, i) => i !== idx))}
-                        style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '0.75rem' }}
-                      >
-                        Remove
-                      </button>
-                    )}
-                  </div>
-                  <div className="form-group">
-                    <label className="form-label">Select Available Shop</label>
-                    <select 
-                      className="form-control" 
-                      required 
-                      value={shopAlloc.shopId} 
-                      onChange={(e) => {
-                        const newShops = [...allocatedShops];
-                        newShops[idx].shopId = e.target.value;
-                        setAllocatedShops(newShops);
-                      }}
-                    >
-                      <option value="">-- Select Available Shop --</option>
-                      {availableShops.map(shop => (
-                        <option key={shop.id} value={shop.id}>Shop {shop.shopNumber} (Block {shop.block} - Floor {shop.floor})</option>
-                      ))}
-                    </select>
-                  </div>
-                  <div className="form-group" style={{ marginBottom: 0 }}>
-                    <label className="form-label">Total Amount (Rs.)</label>
-                    <input 
-                      type="number" 
-                      className="form-control" 
-                      required min="0" step="0.01" 
-                      value={shopAlloc.totalAmount}
-                      onChange={(e) => {
-                        const newShops = [...allocatedShops];
-                        newShops[idx].totalAmount = e.target.value;
-                        setAllocatedShops(newShops);
-                      }}
-                    />
-                  </div>
-                </div>
-              ))}
-              
-              <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '1.5rem' }}>
-                <button 
-                  type="button" 
-                  className="btn btn-secondary" 
-                  onClick={() => setAllocatedShops([...allocatedShops, { shopId: '', totalAmount: '' }])}
+
+              <div className="form-group">
+                <label className="form-label">Select Available Shop</label>
+                <select
+                  className="form-control"
+                  required
+                  value={selectedShopId}
+                  onChange={e => setSelectedShopId(e.target.value)}
                 >
-                  <Plus size={16} /> Add Another Shop
-                </button>
+                  <option value="">-- Select Available Shop --</option>
+                  {availableShops.map(shop => (
+                    <option key={shop.id} value={shop.id}>
+                      Shop {shop.shopNumber} — Block {shop.block}, {shop.floor}{shop.side ? ` (${shop.side} Side)` : ''}
+                    </option>
+                  ))}
+                </select>
               </div>
 
-              <div className="form-group" style={{ padding: '1rem', backgroundColor: '#eef2ff', border: '1px solid #c7d2fe', borderRadius: 'var(--radius-md)' }}>
-                <label className="form-label">Total Advance Payment (Rs.)</label>
-                <input type="number" name="globalAdvancePayment" className="form-control" required min="0" step="0.01" defaultValue="0" />
-                <p style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', marginTop: '0.5rem', marginBottom: 0 }}>
-                  This single advance payment will be applied globally to the tenant's entire portfolio.
-                </p>
+              <div className="form-group">
+                <label className="form-label">Total Sale Amount (Rs.)</label>
+                <input
+                  type="number"
+                  name="totalAmount"
+                  className="form-control"
+                  required min="0" step="0.01"
+                  value={totalAmount}
+                  onChange={e => setTotalAmount(e.target.value)}
+                  placeholder="e.g. 500000"
+                />
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">Advance Payment (Rs.)</label>
+                <input
+                  type="number"
+                  name="advancePayment"
+                  className="form-control"
+                  min="0" step="0.01"
+                  defaultValue="0"
+                />
               </div>
 
               <div style={{ marginTop: '1.5rem', display: 'flex', justifyContent: 'flex-end', gap: '1rem' }}>
