@@ -137,6 +137,7 @@ export default function Shops() {
       const startSerial = parseInt(formData.get('startSerial'));
       const endSerial = parseInt(formData.get('endSerial'));
       const prefix = formData.get('prefix') || '';
+      const backShopId = formData.get('backShopId') || null;
       
       const newShops = [];
       for (let i = startSerial; i <= endSerial; i++) {
@@ -145,19 +146,22 @@ export default function Shops() {
           block: block,
           floor: floor,
           price: price,
-          status: 'Available'
+          status: 'Available',
+          backShopId: backShopId
         });
       }
       if (newShops.length > 0) {
         await db.shops.bulkAdd(newShops);
       }
     } else {
+      const backShopId = formData.get('backShopId') || null;
       const newShop = {
         shopNumber: formData.get('shopNumber'),
         block: block,
         floor: floor,
         price: price,
-        status: 'Available'
+        status: 'Available',
+        backShopId: backShopId
       };
       await db.shops.add(newShop);
     }
@@ -508,6 +512,15 @@ export default function Shops() {
               <div className="form-group">
                 <label className="form-label">Default Price per Shop</label>
                 <input type="number" name="price" className="form-control" required min="0" step="0.01" />
+              </div>
+              <div className="form-group">
+                <label className="form-label">Back Shop (optional)</label>
+                <select name="backShopId" className="form-control">
+                  <option value="">-- No Back Shop --</option>
+                  {shops.map(s => (
+                    <option key={s.id} value={s.id}>#{s.shopNumber}</option>
+                  ))}
+                </select>
               </div>
               <div style={{ marginTop: '1.5rem', display: 'flex', justifyContent: 'flex-end', gap: '1rem' }}>
                 <button type="button" className="btn btn-secondary" onClick={() => setIsModalOpen(false)}>Cancel</button>
