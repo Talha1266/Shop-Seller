@@ -13,7 +13,7 @@ export default function Shops() {
   
   const [expandedBlocks, setExpandedBlocks] = useState({});
   const [expandedFloors, setExpandedFloors] = useState({});
-  const [editingPrice, setEditingPrice] = useState({});
+  const [priceModal, setPriceModal] = useState(null); // { shop, oldPrice, newValue }
 
   const shops = useSupabase('shops') || [];
   const blocks = useSupabase('blocks') || [];
@@ -286,23 +286,25 @@ export default function Shops() {
     }
   };
 
-  const handleSavePrice = async (e, shop) => {
+  const openPriceModal = (e, shop) => {
     e.stopPropagation();
-    const newPrice = parseFloat(editingPrice[shop.id]);
-
-    // Dismiss edit mode if invalid
-    if (isNaN(newPrice) || newPrice < 0) {
-      setEditingPrice(prev => { const n = { ...prev }; delete n[shop.id]; return n; });
-      return;
-    }
-
-    // Hard warning
     const oldPrice = shop.status === 'Occupied'
       ? (sales.find(s => s.shopId === shop.id)?.totalAmount ?? shop.price)
       : shop.price;
+    setPriceModal({ shop, oldPrice, newValue: String(oldPrice) });
+  };
 
+  const handleSavePrice = async () => {
+    if (!priceModal) return;
+    const { shop, oldPrice } = priceModal;
+    const newPrice = parseFloat(priceModal.newValue);
+
+    if (isNaN(newPrice) || newPrice < 0) {
+      alert('Please enter a valid price.');
+      return;
+    }
     if (newPrice === parseFloat(oldPrice)) {
-      setEditingPrice(prev => { const n = { ...prev }; delete n[shop.id]; return n; });
+      setPriceModal(null);
       return;
     }
 
@@ -311,10 +313,7 @@ export default function Shops() {
       : `⚠️ WARNING\n\nYou are changing the listed price for Shop ${shop.shopNumber}:\n\n  Old price: Rs. ${Number(oldPrice).toLocaleString()}\n  New price: Rs. ${newPrice.toLocaleString()}\n\nAre you sure?`;
 
     const confirmed = window.confirm(warningMsg);
-    if (!confirmed) {
-      setEditingPrice(prev => { const n = { ...prev }; delete n[shop.id]; return n; });
-      return;
-    }
+    if (!confirmed) return;
 
     try {
       await db.shops.update(shop.id, { price: newPrice });
@@ -324,10 +323,10 @@ export default function Shops() {
           await supabase.from('sales').update({ totalAmount: newPrice }).eq('id', shopSale.id);
         }
       }
+      setPriceModal(null);
     } catch (err) {
       alert('Failed to update price: ' + err.message);
     }
-    setEditingPrice(prev => { const n = { ...prev }; delete n[shop.id]; return n; });
   };
 
   // Group shops by Block -> Floor
@@ -530,57 +529,25 @@ export default function Shops() {
                                       <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
                                         {shop.status === 'Occupied' ? (
                                           <>
-                                            {editingPrice[shop.id] !== undefined ? (
-                                              <input
-                                                type="number"
-                                                autoFocus
-                                                value={editingPrice[shop.id]}
-                                                onClick={e => e.stopPropagation()}
-                                                onChange={e => setEditingPrice(prev => ({ ...prev, [shop.id]: e.target.value }))}
-                                                onBlur={e => handleSavePrice(e, shop)}
-                                                onKeyDown={e => {
-                                                  if (e.key === 'Enter') handleSavePrice(e, shop);
-                                                  if (e.key === 'Escape') setEditingPrice(prev => { const n = {...prev}; delete n[shop.id]; return n; });
-                                                }}
-                                                style={{ width: '100%', fontSize: '0.8rem', padding: '2px 6px', border: '1px solid var(--color-primary)', borderRadius: '4px', outline: 'none' }}
-                                              />
-                                            ) : (
-                                              <p
-                                                onClick={e => { e.stopPropagation(); setEditingPrice(prev => ({ ...prev, [shop.id]: totalAllocatedAmount })); }}
-                                                title="Click to edit total amount"
-                                                style={{ margin: 0, fontSize: '0.875rem', color: 'var(--color-text-muted)', fontWeight: 500, cursor: 'text', borderBottom: '1px dashed #94a3b8', display: 'inline-block' }}
-                                              >
-                                                Total: Rs. {totalAllocatedAmount.toLocaleString()}
-                                              </p>
-                                            )}
+                                            <p
+                                              onClick={e => openPriceModal(e, shop)}
+                                              title="Click to edit total amount"
+                                              style={{ margin: 0, fontSize: '0.875rem', color: 'var(--color-text-muted)', fontWeight: 500, cursor: 'pointer', borderBottom: '1px dashed #94a3b8', display: 'inline-block' }}
+                                            >
+                                              Total: Rs. {totalAllocatedAmount.toLocaleString()}
+                                            </p>
                                             <p style={{ margin: 0, fontSize: '0.875rem', color: balance > 0 ? '#ef4444' : 'var(--color-success)', fontWeight: 600 }}>
                                               Bal: Rs. {balance.toLocaleString()}
                                             </p>
                                           </>
                                         ) : (
-                                          editingPrice[shop.id] !== undefined ? (
-                                            <input
-                                              type="number"
-                                              autoFocus
-                                              value={editingPrice[shop.id]}
-                                              onClick={e => e.stopPropagation()}
-                                              onChange={e => setEditingPrice(prev => ({ ...prev, [shop.id]: e.target.value }))}
-                                              onBlur={e => handleSavePrice(e, shop)}
-                                              onKeyDown={e => {
-                                                if (e.key === 'Enter') handleSavePrice(e, shop);
-                                                if (e.key === 'Escape') setEditingPrice(prev => { const n = {...prev}; delete n[shop.id]; return n; });
-                                              }}
-                                              style={{ width: '100%', fontSize: '0.8rem', padding: '2px 6px', border: '1px solid var(--color-primary)', borderRadius: '4px', outline: 'none' }}
-                                            />
-                                          ) : (
-                                            <p
-                                              onClick={e => { e.stopPropagation(); setEditingPrice(prev => ({ ...prev, [shop.id]: shop.price })); }}
-                                              title="Click to edit price"
-                                              style={{ margin: 0, fontSize: '0.875rem', color: 'var(--color-text-muted)', fontWeight: 500, cursor: 'text', borderBottom: '1px dashed #94a3b8', display: 'inline-block' }}
-                                            >
-                                              Price: Rs. {shop.price.toLocaleString()}
-                                            </p>
-                                          )
+                                          <p
+                                            onClick={e => openPriceModal(e, shop)}
+                                            title="Click to edit price"
+                                            style={{ margin: 0, fontSize: '0.875rem', color: 'var(--color-text-muted)', fontWeight: 500, cursor: 'pointer', borderBottom: '1px dashed #94a3b8', display: 'inline-block' }}
+                                          >
+                                            Price: Rs. {shop.price.toLocaleString()}
+                                          </p>
                                         )}
                                       </div>
                                       {shop.status === 'Available' ? (
@@ -716,6 +683,55 @@ export default function Shops() {
                 <button type="submit" className="btn btn-primary">{isBulkAdd ? 'Generate Shops' : 'Save Shop'}</button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+      {/* ── Price Edit Modal ── */}
+      {priceModal && (
+        <div className="modal-overlay" onClick={() => setPriceModal(null)}>
+          <div className="modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: '420px' }}>
+            <div className="modal-header">
+              <h2 className="modal-title">
+                {priceModal.shop.status === 'Occupied' ? 'Edit Total Sale Amount' : 'Edit Listed Price'}
+              </h2>
+              <button className="modal-close" onClick={() => setPriceModal(null)}><X size={24} /></button>
+            </div>
+
+            <div style={{ padding: '0.5rem 0 1.5rem' }}>
+              <p style={{ margin: '0 0 0.25rem 0', fontSize: '0.875rem', color: 'var(--color-text-muted)' }}>
+                Shop <strong>{priceModal.shop.shopNumber}</strong> — Block {priceModal.shop.block}, {priceModal.shop.floor}
+              </p>
+              <p style={{ margin: '0 0 1.5rem 0', fontSize: '0.875rem', color: 'var(--color-text-muted)' }}>
+                Current: <strong>Rs. {Number(priceModal.oldPrice).toLocaleString()}</strong>
+              </p>
+
+              <div className="form-group" style={{ marginBottom: '0.5rem' }}>
+                <label className="form-label">
+                  {priceModal.shop.status === 'Occupied' ? 'New Total Sale Amount (Rs.)' : 'New Price (Rs.)'}
+                </label>
+                <input
+                  type="number"
+                  className="form-control"
+                  autoFocus
+                  min="0"
+                  step="0.01"
+                  value={priceModal.newValue}
+                  onChange={e => setPriceModal(prev => ({ ...prev, newValue: e.target.value }))}
+                  onKeyDown={e => { if (e.key === 'Enter') handleSavePrice(); if (e.key === 'Escape') setPriceModal(null); }}
+                />
+              </div>
+
+              {priceModal.shop.status === 'Occupied' && (
+                <p style={{ fontSize: '0.78rem', color: '#b45309', backgroundColor: '#fffbeb', border: '1px solid #fde68a', borderRadius: '6px', padding: '0.5rem 0.75rem', margin: '1rem 0 0 0' }}>
+                  ⚠️ Changing this will update the sale agreement and recalculate the tenant's outstanding balance.
+                </p>
+              )}
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '1rem' }}>
+              <button className="btn btn-secondary" onClick={() => setPriceModal(null)}>Cancel</button>
+              <button className="btn btn-primary" onClick={handleSavePrice}>Save Change</button>
+            </div>
           </div>
         </div>
       )}
