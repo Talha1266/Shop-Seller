@@ -166,27 +166,46 @@ export default function Tenants() {
     if (!file || !selectedTenantForDocs) return;
 
     try {
-      // Upload to Supabase Storage bucket "tenant-documents"
       const filePath = `${selectedTenantForDocs.id}/${Date.now()}_${file.name}`;
-      const { error: uploadError } = await supabase.storage
+      console.log('[Upload] Starting upload to storage path:', filePath);
+
+      const { data: storageData, error: uploadError } = await supabase.storage
         .from('tenant-documents')
         .upload(filePath, file, { upsert: false });
 
-      if (uploadError) throw uploadError;
+      if (uploadError) {
+        console.error('[Upload] Storage error:', uploadError);
+        throw new Error('Storage upload failed: ' + uploadError.message);
+      }
 
-      // Save metadata to documents table
-      await db.documents.add({
-        tenantId: selectedTenantForDocs.id,
-        name: file.name,
-        type: file.type,
-        date: new Date().toISOString(),
-        storagePath: filePath
-      });
+      console.log('[Upload] Storage OK:', storageData);
+      console.log('[Upload] Saving metadata to documents table...');
 
+      const { data: docData, error: docError } = await supabase
+        .from('documents')
+        .insert({
+          tenantId: selectedTenantForDocs.id,
+          project_id: selectedTenantForDocs.project_id,
+          name: file.name,
+          type: file.type,
+          date: new Date().toISOString(),
+          storagePath: filePath
+        })
+        .select()
+        .single();
+
+      if (docError) {
+        console.error('[Upload] DB insert error:', docError);
+        // Rollback: remove the uploaded file
+        await supabase.storage.from('tenant-documents').remove([filePath]);
+        throw new Error('DB save failed: ' + docError.message);
+      }
+
+      console.log('[Upload] Done:', docData);
       e.target.value = null;
     } catch (err) {
-      console.error('Upload error:', err);
-      alert('Failed to upload document. Error: ' + err.message);
+      console.error('[Upload] Full error:', err);
+      alert('Failed to upload document.\n\nError: ' + err.message + '\n\nCheck browser console (F12) for details.');
     }
   };
 
