@@ -19,6 +19,7 @@ export default function Tenants() {
   const [totalAmount, setTotalAmount] = useState('');
   const [cnicVal, setCnicVal] = useState('');
   const [mobileVal, setMobileVal] = useState('');
+  const [uploadProgress, setUploadProgress] = useState(null); // null = idle, 0-100 = uploading
 
   useEffect(() => {
     if (location.state?.preSelectShopId) {
@@ -167,21 +168,46 @@ export default function Tenants() {
     const file = e.target.files[0];
     if (!file || !selectedTenantForDocs) return;
 
+    const filePath = `${selectedTenantForDocs.id}/${Date.now()}_${file.name}`;
+    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+    const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+    const { data: { session } } = await supabase.auth.getSession();
+    const token = session?.access_token || supabaseKey;
+
+    setUploadProgress(0);
+
+    // Use XHR for real progress events
+    await new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      xhr.open('POST', `${supabaseUrl}/storage/v1/object/tenant-documents/${filePath}`);
+      xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+      xhr.setRequestHeader('apikey', supabaseKey);
+      xhr.setRequestHeader('x-upsert', 'false');
+
+      xhr.upload.onprogress = (event) => {
+        if (event.lengthComputable) {
+          setUploadProgress(Math.round((event.loaded / event.total) * 100));
+        }
+      };
+
+      xhr.onload = () => {
+        if (xhr.status >= 200 && xhr.status < 300) resolve();
+        else reject(new Error(`Storage upload failed (${xhr.status}): ${xhr.responseText}`));
+      };
+      xhr.onerror = () => reject(new Error('Network error during upload'));
+
+      const formData = new FormData();
+      formData.append('', file);
+      xhr.send(file);
+    }).catch(err => {
+      setUploadProgress(null);
+      alert('Upload failed: ' + err.message);
+      e.target.value = null;
+      throw err;
+    });
+
+    // Save metadata to DB
     try {
-      const filePath = `${selectedTenantForDocs.id}/${Date.now()}_${file.name}`;
-      console.log('[Upload] Uploading to storage:', filePath);
-
-      const { error: uploadError } = await supabase.storage
-        .from('tenant-documents')
-        .upload(filePath, file, { upsert: false });
-
-      if (uploadError) {
-        console.error('[Upload] Storage error:', uploadError);
-        throw new Error('Storage upload failed: ' + uploadError.message);
-      }
-
-      console.log('[Upload] Storage OK. Saving to DB...');
-
       const { error: dbError } = await supabase.from('documents').insert({
         project_id: activeProject.id,
         tenantId: selectedTenantForDocs.id,
@@ -193,17 +219,15 @@ export default function Tenants() {
       });
 
       if (dbError) {
-        console.error('[Upload] DB error:', dbError);
         await supabase.storage.from('tenant-documents').remove([filePath]);
         throw new Error('DB save failed: ' + dbError.message);
       }
-
-      console.log('[Upload] Complete!');
-      e.target.value = null;
     } catch (err) {
-      console.error('[Upload] Error:', err);
       alert('Upload failed: ' + err.message);
     }
+
+    setUploadProgress(null);
+    e.target.value = null;
   };
 
   const handleDownloadDoc = async (doc) => {
@@ -471,12 +495,32 @@ export default function Tenants() {
             </div>
             
             <div style={{ padding: '1rem', backgroundColor: '#f8fafc', border: '1px dashed #cbd5e1', borderRadius: '4px', textAlign: 'center', marginBottom: '1.5rem' }}>
-              <label style={{ cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.5rem' }}>
-                <Paperclip size={24} color="#64748b" />
-                <span style={{ fontWeight: 500, color: 'var(--color-primary)' }}>Click to Upload Document</span>
-                <span style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>(Max recommended size: 5MB per file)</span>
-                <input type="file" style={{ display: 'none' }} onChange={handleFileUpload} />
-              </label>
+              {uploadProgress !== null ? (
+                <div style={{ padding: '0.5rem 0' }}>
+                  <p style={{ margin: '0 0 0.5rem 0', fontWeight: 500, color: 'var(--color-primary)' }}>
+                    Uploading... {uploadProgress}%
+                  </p>
+                  <div style={{ width: '100%', backgroundColor: '#e2e8f0', borderRadius: '999px', height: '10px', overflow: 'hidden' }}>
+                    <div style={{
+                      height: '100%',
+                      width: `${uploadProgress}%`,
+                      backgroundColor: 'var(--color-primary)',
+                      borderRadius: '999px',
+                      transition: 'width 0.2s ease'
+                    }} />
+                  </div>
+                  <p style={{ margin: '0.4rem 0 0 0', fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>
+                    Please wait...
+                  </p>
+                </div>
+              ) : (
+                <label style={{ cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.5rem' }}>
+                  <Paperclip size={24} color="#64748b" />
+                  <span style={{ fontWeight: 500, color: 'var(--color-primary)' }}>Click to Upload Document</span>
+                  <span style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>(Max recommended size: 5MB per file)</span>
+                  <input type="file" style={{ display: 'none' }} onChange={handleFileUpload} />
+                </label>
+              )}
             </div>
 
             <h3 style={{ fontSize: '1rem', fontWeight: 600, marginBottom: '1rem' }}>Attached Documents</h3>
