@@ -14,9 +14,17 @@ import Summary from './pages/Summary';
 import ProjectsDashboard from './pages/ProjectsDashboard';
 import { supabase } from './supabaseClient';
 import { ProjectProvider, useProject } from './contexts/ProjectContext';
+import { purgeOrphanedData } from './utils/autoCleanup';
 
 function AppContent({ currentUser, handleLogout }) {
   const { activeProject } = useProject();
+
+  // Auto-delete orphaned data whenever a project is loaded
+  useEffect(() => {
+    if (activeProject?.id) {
+      purgeOrphanedData(activeProject.id);
+    }
+  }, [activeProject?.id]);
 
   return (
     <BrowserRouter>
