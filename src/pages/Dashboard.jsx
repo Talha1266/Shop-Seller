@@ -17,12 +17,25 @@ export default function Dashboard() {
 
   const tenants = useSupabase('tenants') || [];
 
+  const occupiedShopIds = new Set(shops.filter(s => s.status === 'Occupied').map(s => s.id));
+
+  // Only count sales that belong to an existing occupied shop
+  const activeSales = sales.filter(s => occupiedShopIds.has(s.shopId));
+  const activeSaleIds = new Set(activeSales.map(s => s.id));
+  const activeTenantIds = new Set(activeSales.map(s => s.tenantId).filter(Boolean));
+
+  // Only count payments tied to active sales/tenants
+  const activePayments = payments.filter(p =>
+    (p.saleId && activeSaleIds.has(p.saleId)) ||
+    (p.tenantId && activeTenantIds.has(p.tenantId))
+  );
+
   const shopsCount = shops.length;
   const shopsSold = shops.filter(s => s.status === 'Occupied').length;
 
-  const totalRevenueExpected = sales.reduce((sum, sale) => sum + parseFloat(sale.totalAmount || 0), 0);
-  const totalReceived = payments.reduce((sum, payment) => sum + parseFloat(payment.amount || 0), 0) +
-                        sales.reduce((sum, sale) => sum + parseFloat(sale.advancePayment || 0), 0);
+  const totalRevenueExpected = activeSales.reduce((sum, sale) => sum + parseFloat(sale.totalAmount || 0), 0);
+  const totalReceived = activePayments.reduce((sum, p) => sum + parseFloat(p.amount || 0), 0) +
+                        activeSales.reduce((sum, sale) => sum + parseFloat(sale.advancePayment || 0), 0);
 
   const stats = [
     { label: 'Total Shops', value: shopsCount, icon: Store, color: '#2563eb', bg: '#eff6ff' },
@@ -42,24 +55,24 @@ export default function Dashboard() {
   });
   const pieData = Object.values(blockOccupancy).map(b => ({ name: b.name, value: b.Occupied }));
 
-  // Process data for Revenue Area Chart (mock timeline based on payments + sales advances)
-  // Since we might not have a lot of historical data, we'll group by month
+  // Revenue Area Chart — only active sales advances + active payments
   const monthlyRevenue = {};
-  sales.forEach(sale => {
-    const month = new Date(sale.date).toISOString().slice(0, 7); // YYYY-MM
+  activeSales.forEach(sale => {
+    const month = new Date(sale.date).toISOString().slice(0, 7);
     if (!monthlyRevenue[month]) monthlyRevenue[month] = 0;
-    monthlyRevenue[month] += sale.advancePayment;
+    monthlyRevenue[month] += parseFloat(sale.advancePayment || 0);
   });
-  payments.forEach(payment => {
+  activePayments.forEach(payment => {
     const month = new Date(payment.date).toISOString().slice(0, 7);
     if (!monthlyRevenue[month]) monthlyRevenue[month] = 0;
-    monthlyRevenue[month] += payment.amount;
+    monthlyRevenue[month] += parseFloat(payment.amount || 0);
   });
-  
+
   const areaData = Object.keys(monthlyRevenue).sort().map(month => ({
     name: month,
     Revenue: monthlyRevenue[month]
   }));
+
 
   // Top Outstanding Balances
   const outstandingBalances = tenants.map(tenant => {
