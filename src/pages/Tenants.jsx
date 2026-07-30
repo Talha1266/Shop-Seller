@@ -15,6 +15,8 @@ export default function Tenants() {
   const navigate = useNavigate();
   const [selectedShopId, setSelectedShopId] = useState('');
   const [totalAmount, setTotalAmount] = useState('');
+  const [cnicVal, setCnicVal] = useState('');
+  const [mobileVal, setMobileVal] = useState('');
 
   useEffect(() => {
     if (location.state?.preSelectShopId) {
@@ -103,10 +105,27 @@ export default function Tenants() {
       return;
     }
 
+    const cnic = formData.get('cnic');
+    const mobile = formData.get('mobile');
+
+    // Validate CNIC: must be exactly XXXXX-XXXXXXX-X
+    const cnicRegex = /^\d{5}-\d{7}-\d{1}$/;
+    if (!cnicRegex.test(cnic)) {
+      alert('❌ Invalid CNIC format.\n\nRequired format: XXXXX-XXXXXXX-X\nExample: 35201-1234567-8\n\nPlease enter all 13 digits in the correct format.');
+      return;
+    }
+
+    // Validate Mobile: must be exactly XXXX-XXXXXXX
+    const mobileRegex = /^\d{4}-\d{7}$/;
+    if (!mobileRegex.test(mobile)) {
+      alert('❌ Invalid mobile number format.\n\nRequired format: XXXX-XXXXXXX\nExample: 0300-1234567\n\nPlease enter all 11 digits in the correct format.');
+      return;
+    }
+
     const newTenant = {
       name: formData.get('name'),
-      cnic: formData.get('cnic'),
-      mobile: formData.get('mobile')
+      cnic,
+      mobile
     };
 
     try {
@@ -127,6 +146,8 @@ export default function Tenants() {
 
       setSelectedShopId('');
       setTotalAmount('');
+      setCnicVal('');
+      setMobileVal('');
       setIsModalOpen(false);
     } catch (err) {
       console.error('Error registering tenant:', err);
@@ -249,11 +270,60 @@ export default function Tenants() {
               </div>
               <div className="form-group">
                 <label className="form-label">CNIC No.</label>
-                <input type="text" name="cnic" className="form-control" required placeholder="XXXXX-XXXXXXX-X" onInput={formatCNIC} maxLength="15" />
+                <input
+                  type="text"
+                  name="cnic"
+                  className="form-control"
+                  required
+                  placeholder="XXXXX-XXXXXXX-X"
+                  maxLength="15"
+                  value={cnicVal}
+                  onChange={e => {
+                    let val = e.target.value.replace(/\D/g, '').slice(0, 13);
+                    let fmt = '';
+                    if (val.length > 0) fmt += val.substring(0, 5);
+                    if (val.length > 5) fmt += '-' + val.substring(5, 12);
+                    if (val.length > 12) fmt += '-' + val.substring(12, 13);
+                    setCnicVal(fmt);
+                  }}
+                  style={{
+                    borderColor: cnicVal.length === 0 ? undefined
+                      : /^\d{5}-\d{7}-\d{1}$/.test(cnicVal) ? '#16a34a' : '#ef4444'
+                  }}
+                />
+                <p style={{ fontSize: '0.75rem', marginTop: '0.25rem', marginBottom: 0,
+                  color: cnicVal.length === 0 ? 'var(--color-text-muted)'
+                    : /^\d{5}-\d{7}-\d{1}$/.test(cnicVal) ? '#16a34a' : '#ef4444' }}>
+                  {/^\d{5}-\d{7}-\d{1}$/.test(cnicVal) ? '✓ Valid CNIC' : 'Format: XXXXX-XXXXXXX-X (13 digits)'}
+                </p>
               </div>
               <div className="form-group">
                 <label className="form-label">Mobile Number</label>
-                <input type="text" name="mobile" className="form-control" required placeholder="XXXX-XXXXXXX" onInput={formatMobile} maxLength="12" />
+                <input
+                  type="text"
+                  name="mobile"
+                  className="form-control"
+                  required
+                  placeholder="XXXX-XXXXXXX"
+                  maxLength="12"
+                  value={mobileVal}
+                  onChange={e => {
+                    let val = e.target.value.replace(/\D/g, '').slice(0, 11);
+                    let fmt = '';
+                    if (val.length > 0) fmt += val.substring(0, 4);
+                    if (val.length > 4) fmt += '-' + val.substring(4, 11);
+                    setMobileVal(fmt);
+                  }}
+                  style={{
+                    borderColor: mobileVal.length === 0 ? undefined
+                      : /^\d{4}-\d{7}$/.test(mobileVal) ? '#16a34a' : '#ef4444'
+                  }}
+                />
+                <p style={{ fontSize: '0.75rem', marginTop: '0.25rem', marginBottom: 0,
+                  color: mobileVal.length === 0 ? 'var(--color-text-muted)'
+                    : /^\d{4}-\d{7}$/.test(mobileVal) ? '#16a34a' : '#ef4444' }}>
+                  {/^\d{4}-\d{7}$/.test(mobileVal) ? '✓ Valid mobile number' : 'Format: XXXX-XXXXXXX (11 digits)'}
+                </p>
               </div>
 
               <h3 style={{ fontSize: '1rem', marginTop: '1.5rem', marginBottom: '1rem', borderBottom: '1px solid var(--color-border)', paddingBottom: '0.5rem' }}>Shop Allocation Details</h3>
