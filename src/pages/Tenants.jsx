@@ -188,7 +188,8 @@ export default function Tenants() {
         name: file.name,
         type: file.type,
         date: new Date().toISOString(),
-        storage_path: filePath
+        storage_path: filePath,
+        file_url: filePath
       });
 
       if (dbError) {
