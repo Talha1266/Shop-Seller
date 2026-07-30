@@ -3,10 +3,12 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { useSupabase } from '../hooks/useSupabase';
 import { useDb } from '../hooks/useDb';
 import { supabase } from '../supabaseClient';
+import { useProject } from '../contexts/ProjectContext';
 import { Plus, X, Paperclip, Download, Trash2, FileText } from 'lucide-react';
 
 export default function Tenants() {
   const db = useDb();
+  const { activeProject } = useProject();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isDocModalOpen, setIsDocModalOpen] = useState(false);
   const [selectedTenantForDocs, setSelectedTenantForDocs] = useState(null);
@@ -167,9 +169,9 @@ export default function Tenants() {
 
     try {
       const filePath = `${selectedTenantForDocs.id}/${Date.now()}_${file.name}`;
-      console.log('[Upload] Starting upload to storage path:', filePath);
+      console.log('[Upload] Uploading to storage:', filePath);
 
-      const { data: storageData, error: uploadError } = await supabase.storage
+      const { error: uploadError } = await supabase.storage
         .from('tenant-documents')
         .upload(filePath, file, { upsert: false });
 
@@ -178,66 +180,56 @@ export default function Tenants() {
         throw new Error('Storage upload failed: ' + uploadError.message);
       }
 
-      console.log('[Upload] Storage OK:', storageData);
-      console.log('[Upload] Saving metadata to documents table...');
+      console.log('[Upload] Storage OK. Saving to DB...');
 
-      const { data: docData, error: docError } = await supabase
-        .from('documents')
-        .insert({
-          tenantId: selectedTenantForDocs.id,
-          project_id: selectedTenantForDocs.project_id,
-          name: file.name,
-          type: file.type,
-          date: new Date().toISOString(),
-          storagePath: filePath
-        })
-        .select()
-        .single();
+      const { error: dbError } = await supabase.from('documents').insert({
+        project_id: activeProject.id,
+        tenantId: selectedTenantForDocs.id,
+        name: file.name,
+        type: file.type,
+        date: new Date().toISOString(),
+        storage_path: filePath
+      });
 
-      if (docError) {
-        console.error('[Upload] DB insert error:', docError);
-        // Rollback: remove the uploaded file
+      if (dbError) {
+        console.error('[Upload] DB error:', dbError);
         await supabase.storage.from('tenant-documents').remove([filePath]);
-        throw new Error('DB save failed: ' + docError.message);
+        throw new Error('DB save failed: ' + dbError.message);
       }
 
-      console.log('[Upload] Done:', docData);
+      console.log('[Upload] Complete!');
       e.target.value = null;
     } catch (err) {
-      console.error('[Upload] Full error:', err);
-      alert('Failed to upload document.\n\nError: ' + err.message + '\n\nCheck browser console (F12) for details.');
+      console.error('[Upload] Error:', err);
+      alert('Upload failed: ' + err.message);
     }
   };
 
   const handleDownloadDoc = async (doc) => {
     try {
+      const path = doc.storage_path || doc.storagePath;
       const { data, error } = await supabase.storage
         .from('tenant-documents')
-        .createSignedUrl(doc.storagePath, 60);
-
+        .createSignedUrl(path, 60);
       if (error) throw error;
-
       const a = document.createElement('a');
       a.href = data.signedUrl;
       a.download = doc.name;
       a.target = '_blank';
       a.click();
     } catch (err) {
-      alert('Failed to download document. Error: ' + err.message);
+      alert('Download failed: ' + err.message);
     }
   };
 
   const handleDeleteDoc = async (doc) => {
-    if (!window.confirm('Are you sure you want to delete this document?')) return;
+    if (!window.confirm('Delete this document?')) return;
     try {
-      // Remove from storage
-      if (doc.storagePath) {
-        await supabase.storage.from('tenant-documents').remove([doc.storagePath]);
-      }
-      // Remove record
+      const path = doc.storage_path || doc.storagePath;
+      if (path) await supabase.storage.from('tenant-documents').remove([path]);
       await db.documents.delete(doc.id);
     } catch (err) {
-      alert('Failed to delete document. Error: ' + err.message);
+      alert('Delete failed: ' + err.message);
     }
   };
 
