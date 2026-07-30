@@ -164,35 +164,64 @@ export default function Tenants() {
   const handleFileUpload = async (e) => {
     const file = e.target.files[0];
     if (!file || !selectedTenantForDocs) return;
-    
-    const arrayBuffer = await file.arrayBuffer();
-    
-    await db.documents.add({
-      tenantId: selectedTenantForDocs.id,
-      name: file.name,
-      type: file.type,
-      date: new Date().toISOString(),
-      data: arrayBuffer
-    });
-    
-    e.target.value = null; 
-  };
 
-  const handleDownloadDoc = (doc) => {
-    const blob = new Blob([doc.data], { type: doc.type });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = doc.name;
-    a.click();
-    URL.revokeObjectURL(url);
-  };
+    try {
+      // Upload to Supabase Storage bucket "tenant-documents"
+      const filePath = `${selectedTenantForDocs.id}/${Date.now()}_${file.name}`;
+      const { error: uploadError } = await supabase.storage
+        .from('tenant-documents')
+        .upload(filePath, file, { upsert: false });
 
-  const handleDeleteDoc = async (id) => {
-    if (window.confirm('Are you sure you want to delete this document?')) {
-      await db.documents.delete(id);
+      if (uploadError) throw uploadError;
+
+      // Save metadata to documents table
+      await db.documents.add({
+        tenantId: selectedTenantForDocs.id,
+        name: file.name,
+        type: file.type,
+        date: new Date().toISOString(),
+        storagePath: filePath
+      });
+
+      e.target.value = null;
+    } catch (err) {
+      console.error('Upload error:', err);
+      alert('Failed to upload document. Error: ' + err.message);
     }
   };
+
+  const handleDownloadDoc = async (doc) => {
+    try {
+      const { data, error } = await supabase.storage
+        .from('tenant-documents')
+        .createSignedUrl(doc.storagePath, 60);
+
+      if (error) throw error;
+
+      const a = document.createElement('a');
+      a.href = data.signedUrl;
+      a.download = doc.name;
+      a.target = '_blank';
+      a.click();
+    } catch (err) {
+      alert('Failed to download document. Error: ' + err.message);
+    }
+  };
+
+  const handleDeleteDoc = async (doc) => {
+    if (!window.confirm('Are you sure you want to delete this document?')) return;
+    try {
+      // Remove from storage
+      if (doc.storagePath) {
+        await supabase.storage.from('tenant-documents').remove([doc.storagePath]);
+      }
+      // Remove record
+      await db.documents.delete(doc.id);
+    } catch (err) {
+      alert('Failed to delete document. Error: ' + err.message);
+    }
+  };
+
 
   const currentTenantDocs = selectedTenantForDocs 
     ? documents.filter(d => d.tenantId === selectedTenantForDocs.id)
@@ -456,7 +485,7 @@ export default function Tenants() {
                       <button className="btn btn-secondary" style={{ padding: '0.25rem 0.5rem' }} onClick={() => handleDownloadDoc(doc)} title="Download">
                         <Download size={14} />
                       </button>
-                      <button className="btn btn-secondary" style={{ padding: '0.25rem 0.5rem', color: '#ef4444', borderColor: '#fee2e2', backgroundColor: '#fef2f2' }} onClick={() => handleDeleteDoc(doc.id)} title="Delete">
+                      <button className="btn btn-secondary" style={{ padding: '0.25rem 0.5rem', color: '#ef4444', borderColor: '#fee2e2', backgroundColor: '#fef2f2' }} onClick={() => handleDeleteDoc(doc)} title="Delete">
                         <Trash2 size={14} />
                       </button>
                     </div>
