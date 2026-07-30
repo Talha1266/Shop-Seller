@@ -222,8 +222,38 @@ export default function Tenants() {
             <tbody>
               {tenants.length === 0 ? (
                 <tr><td colSpan="5" style={{ textAlign: 'center', padding: '2rem', color: 'var(--color-text-muted)' }}>No tenants found. Add one to get started.</td></tr>
-              ) : (
-                tenants.map(tenant => (
+              ) : (() => {
+                // Floor ordering: Ground first, then First, Second, Third, etc.
+                const floorOrder = (name = '') => {
+                  const n = name.toLowerCase().trim();
+                  if (n.includes('ground')) return 0;
+                  if (n.includes('first')  || n === '1st') return 1;
+                  if (n.includes('second') || n === '2nd') return 2;
+                  if (n.includes('third')  || n === '3rd') return 3;
+                  if (n.includes('fourth') || n === '4th') return 4;
+                  const num = parseInt(n);
+                  return isNaN(num) ? 99 : num + 10;
+                };
+
+                const sortedTenants = [...tenants].sort((a, b) => {
+                  const saleA = sales.find(s => s.tenantId === a.id);
+                  const saleB = sales.find(s => s.tenantId === b.id);
+                  const shopA = saleA ? shops.find(s => s.id === saleA.shopId) : null;
+                  const shopB = saleB ? shops.find(s => s.id === saleB.shopId) : null;
+
+                  // Block: alphabetical (A, B, C...)
+                  const blockCmp = (shopA?.block || '').localeCompare(shopB?.block || '');
+                  if (blockCmp !== 0) return blockCmp;
+
+                  // Floor: Ground → First → Second...
+                  const floorCmp = floorOrder(shopA?.floor) - floorOrder(shopB?.floor);
+                  if (floorCmp !== 0) return floorCmp;
+
+                  // Shop Number: numeric ascending
+                  return parseInt(shopA?.shopNumber || 0) - parseInt(shopB?.shopNumber || 0);
+                });
+
+                return sortedTenants.map(tenant => (
                   <tr key={tenant.id}>
                     <td style={{ fontWeight: 500 }}>{tenant.name}</td>
                     <td>{tenant.cnic}</td>
@@ -248,8 +278,8 @@ export default function Tenants() {
                       </button>
                     </td>
                   </tr>
-                ))
-              )}
+                ));
+              })()}
             </tbody>
           </table>
         </div>
