@@ -122,8 +122,22 @@ export default function Payments() {
     return { tenant, tenantShops };
   };
 
-  const activeSales = sales.filter(s => !s.isCompleted);
-  const activeTenants = Array.from(new Set(activeSales.map(s => s.tenantId))).map(tId => tenants.find(t => t.id === tId)).filter(Boolean);
+  // Only show payments linked to tenants who have an active (occupied) shop
+  const occupiedShopIds = new Set(shops.filter(s => s.status === 'Occupied').map(s => s.id));
+  const activeSalesByShop = sales.filter(s => occupiedShopIds.has(s.shopId));
+  const validTenantIds = new Set(activeSalesByShop.map(s => s.tenantId).filter(Boolean));
+  const validSaleIds = new Set(activeSalesByShop.map(s => s.id));
+
+  const filteredPayments = payments.filter(p =>
+    (p.tenantId && validTenantIds.has(p.tenantId)) ||
+    (p.saleId && validSaleIds.has(p.saleId))
+  );
+
+  const activeSales = sales.filter(s => !s.isCompleted && occupiedShopIds.has(s.shopId));
+  const activeTenants = Array.from(new Set(activeSales.map(s => s.tenantId)))
+    .map(tId => tenants.find(t => t.id === tId))
+    .filter(Boolean);
+
 
   // For printing the currently selected payment
   const printData = printPaymentId ? payments.find(p => p.id === printPaymentId) : null;
@@ -160,10 +174,10 @@ export default function Payments() {
               </tr>
             </thead>
             <tbody>
-              {payments.length === 0 ? (
+              {filteredPayments.length === 0 ? (
                 <tr><td colSpan="6" style={{ textAlign: 'center', padding: '2rem', color: 'var(--color-text-muted)' }}>No payments recorded yet.</td></tr>
               ) : (
-                payments.map(payment => {
+                filteredPayments.map(payment => {
                   const details = getPaymentDetails(payment);
                   return (
                     <tr key={payment.id}>
