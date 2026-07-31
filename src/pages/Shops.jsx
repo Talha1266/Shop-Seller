@@ -156,8 +156,15 @@ export default function Shops() {
 
         const newShops = [];
         for (let i = startSerial; i <= endSerial; i++) {
+          const shopStr = `${i}`;
+          
+          if (shops.some(s => s.block === block && String(s.shopNumber).toLowerCase() === shopStr.toLowerCase())) {
+            alert(`❌ Error: Shop ${shopStr} already exists in Block ${block}. Bulk add aborted to prevent duplicates.`);
+            return;
+          }
+          
           newShops.push({
-            shopNumber: `${i}`,
+            shopNumber: shopStr,
             block: block,
             floor: floor,
             price: price,
@@ -176,6 +183,11 @@ export default function Shops() {
 
         if (!shopNumber) {
           alert('Please enter a shop number.');
+          return;
+        }
+
+        if (shops.some(s => s.block === block && String(s.shopNumber).toLowerCase() === String(shopNumber).toLowerCase())) {
+          alert(`❌ Error: Shop ${shopNumber} already exists in Block ${block}.`);
           return;
         }
 
