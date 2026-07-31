@@ -285,7 +285,7 @@ export default function Payments({ currentUser }) {
                       </td>
                       <td>{new Date(payment.date).toLocaleDateString()}</td>
                       <td>{details?.tenant?.name || 'N/A'}</td>
-                      <td>{details?.tenantShops ? details.tenantShops.map(s => `Shop ${s.shopNumber}`).join(', ') : 'N/A'}</td>
+                      <td>{details?.tenantShops ? details.tenantShops.map(s => `Shop ${s.shopNumber} (Block ${s.block})`).join(', ') : 'N/A'}</td>
                       <td style={{ fontWeight: 600 }}>Rs. {payment.amount.toLocaleString()}</td>
                       <td style={{ display: 'flex', gap: '0.5rem' }}>
                         <button className="btn btn-secondary" style={{ padding: '0.25rem 0.5rem' }} onClick={() => triggerPrint(payment.id)}>
