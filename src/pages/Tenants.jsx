@@ -16,7 +16,6 @@ export default function Tenants() {
   const location = useLocation();
   const navigate = useNavigate();
   const [selectedShopId, setSelectedShopId] = useState('');
-  const [totalAmount, setTotalAmount] = useState('');
   const [cnicVal, setCnicVal] = useState('');
   const [mobileVal, setMobileVal] = useState('');
   const [uploadProgress, setUploadProgress] = useState(null); // null = idle, 0-100 = uploading
@@ -134,11 +133,14 @@ export default function Tenants() {
     try {
       const tenantId = await db.tenants.add(newTenant);
 
+      const selectedShop = shops.find(s => s.id === selectedShopId);
+      const shopPrice = selectedShop ? parseFloat(selectedShop.price || 0) : 0;
+
       const newSale = {
         shopId: selectedShopId,
         tenantId: tenantId,
         date: formData.get('date'),
-        totalAmount: parseFloat(formData.get('totalAmount')),
+        totalAmount: shopPrice,
         advancePayment: parseFloat(formData.get('advancePayment') || 0),
         isCompleted: false
       };
@@ -148,7 +150,6 @@ export default function Tenants() {
       await db.shops.update(selectedShopId, { status: 'Occupied', price: newSale.totalAmount });
 
       setSelectedShopId('');
-      setTotalAmount('');
       setCnicVal('');
       setMobileVal('');
       setIsModalOpen(false);
@@ -445,18 +446,7 @@ export default function Tenants() {
                 </select>
               </div>
 
-              <div className="form-group">
-                <label className="form-label">Total Sale Amount (Rs.)</label>
-                <input
-                  type="number"
-                  name="totalAmount"
-                  className="form-control"
-                  required min="0" step="0.01"
-                  value={totalAmount}
-                  onChange={e => setTotalAmount(e.target.value)}
-                  placeholder="e.g. 500000"
-                />
-              </div>
+
 
               <div className="form-group">
                 <label className="form-label">Advance Payment (Rs.)</label>
