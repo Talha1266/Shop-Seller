@@ -3,7 +3,7 @@ import { useLocation } from 'react-router-dom';
 import { useSupabase } from '../hooks/useSupabase';
 import { useDb } from '../hooks/useDb';
 import { supabase } from '../supabaseClient';
-import { Plus, X, Printer, Edit } from 'lucide-react';
+import { Plus, X, Printer, Edit, Lock, LockOpen } from 'lucide-react';
 import { useReactToPrint } from 'react-to-print';
 
 // Receipt component for printing
@@ -56,14 +56,28 @@ const ReceiptPrint = ({ payment, tenantShops, tenant, innerRef }) => {
 };
 
 
-export default function Payments() {
+export default function Payments({ currentUser }) {
   const db = useDb();
+  const [isUnlocked, setIsUnlocked] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [selectedPaymentForEdit, setSelectedPaymentForEdit] = useState(null);
   const [printPaymentId, setPrintPaymentId] = useState(null);
   const [preSelectedTenantId, setPreSelectedTenantId] = useState('');
   const location = useLocation();
+
+  const handleUnlock = () => {
+    const code = window.prompt("SAFETY LOCK ACTIVE\\n\\nTo unlock payment edits, type 'CONFIRM':");
+    if (code === 'CONFIRM') {
+      setIsUnlocked(true);
+    } else if (code !== null) {
+      alert("Invalid code. System remains locked.");
+    }
+  };
+
+  const handleLock = () => {
+    setIsUnlocked(false);
+  };
 
   useEffect(() => {
     if (location.state?.preSelectTenantId) {
@@ -106,6 +120,7 @@ export default function Payments() {
   };
 
   const handleEditReceipt = async (payment) => {
+    if (!isUnlocked) return;
     const newReceipt = window.prompt("Enter new receipt number:", payment.receiptNo);
     if (newReceipt !== null && newReceipt.trim() !== "" && newReceipt !== payment.receiptNo) {
       try {
@@ -183,9 +198,20 @@ export default function Payments() {
 
       <div className="page-header">
         <h1 className="page-title">Installment Payments</h1>
-        <button className="btn btn-primary" onClick={() => setIsModalOpen(true)}>
-          <Plus size={18} /> Record Payment
-        </button>
+        <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
+          {currentUser?.isAdmin && (
+            <button 
+              className={`btn ${isUnlocked ? 'btn-secondary' : 'btn-primary'}`} 
+              onClick={isUnlocked ? handleLock : handleUnlock}
+              style={isUnlocked ? { backgroundColor: '#f1f5f9', color: '#475569' } : { backgroundColor: '#dc2626', borderColor: '#b91c1c', color: '#fff' }}
+            >
+              {isUnlocked ? <><LockOpen size={18} /> Edits Unlocked</> : <><Lock size={18} /> Unlock Edits</>}
+            </button>
+          )}
+          <button className="btn btn-primary" onClick={() => setIsModalOpen(true)}>
+            <Plus size={18} /> Record Payment
+          </button>
+        </div>
       </div>
 
       <div className="card" style={{ padding: 0 }}>
@@ -210,9 +236,9 @@ export default function Payments() {
                   return (
                     <tr key={payment.id}>
                       <td 
-                        style={{ fontWeight: 500, color: 'var(--color-primary)', cursor: 'pointer', textDecoration: 'underline dashed' }} 
+                        style={{ fontWeight: 500, color: isUnlocked ? 'var(--color-primary)' : 'var(--color-text)', cursor: isUnlocked ? 'pointer' : 'default', textDecoration: isUnlocked ? 'underline dashed' : 'none' }} 
                         onClick={() => handleEditReceipt(payment)}
-                        title="Click to edit receipt number"
+                        title={isUnlocked ? "Click to edit receipt number" : ""}
                       >
                         {payment.receiptNo}
                       </td>
@@ -224,9 +250,11 @@ export default function Payments() {
                         <button className="btn btn-secondary" style={{ padding: '0.25rem 0.5rem' }} onClick={() => triggerPrint(payment.id)}>
                           <Printer size={16} /> Print
                         </button>
-                        <button className="btn btn-secondary" style={{ padding: '0.25rem 0.5rem', color: '#d97706', borderColor: '#fef3c7', backgroundColor: '#fffbeb' }} onClick={() => { setSelectedPaymentForEdit(payment); setIsEditModalOpen(true); }}>
-                          <Edit size={16} /> Edit
-                        </button>
+                        {isUnlocked && (
+                          <button className="btn btn-secondary" style={{ padding: '0.25rem 0.5rem', color: '#d97706', borderColor: '#fef3c7', backgroundColor: '#fffbeb' }} onClick={() => { setSelectedPaymentForEdit(payment); setIsEditModalOpen(true); }}>
+                            <Edit size={16} /> Edit
+                          </button>
+                        )}
                       </td>
                     </tr>
                   )
