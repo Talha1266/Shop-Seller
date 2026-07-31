@@ -4,7 +4,57 @@ import { useSupabase } from '../hooks/useSupabase';
 import { useDb } from '../hooks/useDb';
 import { supabase } from '../supabaseClient';
 import { useProject } from '../contexts/ProjectContext';
-import { Plus, X, Paperclip, Download, Trash2, FileText } from 'lucide-react';
+import { Plus, X, Paperclip, Download, Trash2, FileText, Printer, User } from 'lucide-react';
+import { useReactToPrint } from 'react-to-print';
+
+const TenantProfilePrint = ({ tenant, tenantSales, tenantShops, payments, innerRef }) => {
+  if (!tenant) return <div ref={innerRef}></div>;
+  
+  const totalAmount = tenantSales.reduce((sum, s) => sum + s.totalAmount, 0);
+  const totalAdvance = tenantSales.reduce((sum, s) => sum + s.advancePayment, 0);
+  const totalPaid = payments.reduce((sum, p) => sum + p.amount, 0) + totalAdvance;
+  const balance = totalAmount - totalPaid;
+
+  return (
+    <div ref={innerRef} style={{ padding: '40px', fontFamily: 'system-ui, sans-serif', display: 'none' }} className="print-profile-wrapper">
+      <style type="text/css" media="print">
+        {`
+          @page { size: auto; margin: 0mm; }
+          .print-profile-wrapper { display: block !important; }
+        `}
+      </style>
+      <div style={{ border: '2px solid #000', padding: '30px', maxWidth: '800px', margin: '0 auto' }}>
+        <div style={{ textAlign: 'center', marginBottom: '30px', borderBottom: '2px solid #000', paddingBottom: '20px' }}>
+          <h1 style={{ margin: '0 0 10px 0', fontSize: '28px', textTransform: 'uppercase' }}>Plaza Management</h1>
+          <h2 style={{ margin: 0, color: '#555' }}>Tenant Profile</h2>
+        </div>
+        
+        <div style={{ marginBottom: '30px', padding: '15px', backgroundColor: '#f9f9f9', border: '1px solid #ddd' }}>
+          <h3 style={{ marginTop: 0, borderBottom: '1px solid #ccc', paddingBottom: '10px' }}>Personal Details</h3>
+          <p style={{ margin: '5px 0' }}><strong>Name:</strong> {tenant.name}</p>
+          <p style={{ margin: '5px 0' }}><strong>CNIC:</strong> {tenant.cnic}</p>
+          <p style={{ margin: '5px 0' }}><strong>Mobile:</strong> {tenant.mobile}</p>
+        </div>
+
+        <div style={{ marginBottom: '30px', padding: '15px', border: '1px solid #ddd' }}>
+          <h3 style={{ marginTop: 0, borderBottom: '1px solid #ccc', paddingBottom: '10px' }}>Allocated Shops</h3>
+          {tenantShops.length === 0 ? <p>No shops allocated.</p> : (
+            tenantShops.map(s => (
+              <p key={s.id} style={{ margin: '5px 0' }}>Shop {s.shopNumber} (Block {s.block}, Floor {s.floor})</p>
+            ))
+          )}
+        </div>
+
+        <div style={{ marginBottom: '30px', padding: '15px', backgroundColor: '#f9f9f9', border: '1px solid #ddd' }}>
+          <h3 style={{ marginTop: 0, borderBottom: '1px solid #ccc', paddingBottom: '10px' }}>Financial Summary</h3>
+          <p style={{ margin: '5px 0' }}><strong>Total Agreed Amount:</strong> Rs. {totalAmount.toLocaleString()}</p>
+          <p style={{ margin: '5px 0' }}><strong>Total Paid (incl. Advance):</strong> Rs. {totalPaid.toLocaleString()}</p>
+          <p style={{ margin: '5px 0' }}><strong>Remaining Balance:</strong> Rs. {balance.toLocaleString()}</p>
+        </div>
+      </div>
+    </div>
+  );
+};
 
 export default function Tenants() {
   const db = useDb();
@@ -12,6 +62,13 @@ export default function Tenants() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isDocModalOpen, setIsDocModalOpen] = useState(false);
   const [selectedTenantForDocs, setSelectedTenantForDocs] = useState(null);
+  const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
+  const [selectedTenantProfile, setSelectedTenantProfile] = useState(null);
+  const printRef = useRef(null);
+  
+  const handlePrint = useReactToPrint({
+    contentRef: printRef,
+  });
   
   const location = useLocation();
   const navigate = useNavigate();
@@ -33,6 +90,7 @@ export default function Tenants() {
   const tenants = useSupabase('tenants') || [];
   const shops = useSupabase('shops') || [];
   const sales = useSupabase('sales') || [];
+  const payments = useSupabase('payments') || [];
   const documents = useSupabase('documents') || [];
   
   const availableShops = shops.filter(s => s.status === 'Available');
@@ -264,8 +322,30 @@ export default function Tenants() {
     ? documents.filter(d => d.tenantId === selectedTenantForDocs.id)
     : [];
 
+  const getProfileData = () => {
+    if (!selectedTenantProfile) return null;
+    const tSales = sales.filter(s => s.tenantId === selectedTenantProfile.id);
+    const tShops = tSales.map(s => shops.find(sh => sh.id === s.shopId)).filter(Boolean);
+    const tPayments = payments.filter(p => tSales.some(s => s.id === p.saleId) || p.tenantId === selectedTenantProfile.id);
+    
+    return {
+      tenant: selectedTenantProfile,
+      tenantSales: tSales,
+      tenantShops: tShops,
+      payments: tPayments
+    };
+  };
+  const profileData = getProfileData();
+
   return (
     <div>
+      <TenantProfilePrint 
+        innerRef={printRef}
+        tenant={profileData?.tenant}
+        tenantSales={profileData?.tenantSales}
+        tenantShops={profileData?.tenantShops}
+        payments={profileData?.payments}
+      />
       <div className="page-header">
         <h1 className="page-title">Tenants Directory</h1>
         <button className="btn btn-primary" onClick={() => { setIsModalOpen(true); }}>
@@ -321,7 +401,13 @@ export default function Tenants() {
 
                 return sortedTenants.map(tenant => (
                   <tr key={tenant.id}>
-                    <td style={{ fontWeight: 500 }}>{tenant.name}</td>
+                    <td 
+                      style={{ fontWeight: 500, color: 'var(--color-primary)', cursor: 'pointer', textDecoration: 'underline dashed' }} 
+                      onClick={() => { setSelectedTenantProfile(tenant); setIsProfileModalOpen(true); }}
+                      title="Click to view full profile"
+                    >
+                      {tenant.name}
+                    </td>
                     <td>{tenant.cnic}</td>
                     <td>{tenant.mobile}</td>
                     <td>{getShopDetails(tenant.id)}</td>
@@ -542,6 +628,79 @@ export default function Tenants() {
             
             <div style={{ marginTop: '1.5rem', display: 'flex', justifyContent: 'flex-end' }}>
               <button className="btn btn-primary" onClick={() => setIsDocModalOpen(false)}>Close</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {isProfileModalOpen && profileData && (
+        <div className="modal-overlay" onClick={() => setIsProfileModalOpen(false)}>
+          <div className="modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: '600px' }}>
+            <div className="modal-header">
+              <h2 className="modal-title">Tenant Profile</h2>
+              <button className="btn btn-secondary" onClick={handlePrint} style={{ marginLeft: 'auto', marginRight: '1rem', padding: '0.25rem 0.75rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <Printer size={16} /> Print Profile
+              </button>
+              <button className="modal-close" onClick={() => setIsProfileModalOpen(false)}><X size={24} /></button>
+            </div>
+            
+            <div style={{ display: 'grid', gap: '1.5rem', marginTop: '1rem' }}>
+              <div style={{ padding: '1rem', backgroundColor: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '6px' }}>
+                <h3 style={{ fontSize: '1rem', fontWeight: 600, margin: '0 0 1rem 0', display: 'flex', alignItems: 'center', gap: '0.5rem', borderBottom: '1px solid #e2e8f0', paddingBottom: '0.5rem' }}>
+                  <User size={18} /> Personal Details
+                </h3>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
+                  <p style={{ margin: 0, color: 'var(--color-text-muted)', fontSize: '0.875rem' }}>Name</p>
+                  <p style={{ margin: 0, fontWeight: 500 }}>{profileData.tenant.name}</p>
+                  
+                  <p style={{ margin: 0, color: 'var(--color-text-muted)', fontSize: '0.875rem' }}>CNIC</p>
+                  <p style={{ margin: 0, fontWeight: 500 }}>{profileData.tenant.cnic}</p>
+                  
+                  <p style={{ margin: 0, color: 'var(--color-text-muted)', fontSize: '0.875rem' }}>Mobile</p>
+                  <p style={{ margin: 0, fontWeight: 500 }}>{profileData.tenant.mobile}</p>
+                </div>
+              </div>
+
+              <div style={{ padding: '1rem', border: '1px solid #e2e8f0', borderRadius: '6px' }}>
+                <h3 style={{ fontSize: '1rem', fontWeight: 600, margin: '0 0 1rem 0', display: 'flex', alignItems: 'center', gap: '0.5rem', borderBottom: '1px solid #e2e8f0', paddingBottom: '0.5rem' }}>
+                  <FileText size={18} /> Allocated Shops
+                </h3>
+                {profileData.tenantShops.length === 0 ? (
+                  <p style={{ margin: 0, color: 'var(--color-text-muted)' }}>No shops currently allocated.</p>
+                ) : (
+                  <ul style={{ margin: 0, paddingLeft: '1.5rem' }}>
+                    {profileData.tenantShops.map(s => (
+                      <li key={s.id} style={{ marginBottom: '0.25rem', fontWeight: 500 }}>
+                        Shop {s.shopNumber} (Block {s.block}, Floor {s.floor})
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+
+              <div style={{ padding: '1rem', backgroundColor: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '6px' }}>
+                <h3 style={{ fontSize: '1rem', fontWeight: 600, margin: '0 0 1rem 0', display: 'flex', alignItems: 'center', gap: '0.5rem', borderBottom: '1px solid #bbf7d0', paddingBottom: '0.5rem', color: '#166534' }}>
+                  Financial Summary
+                </h3>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
+                  <p style={{ margin: 0, color: '#15803d', fontSize: '0.875rem' }}>Total Agreed Amount</p>
+                  <p style={{ margin: 0, fontWeight: 600 }}>Rs. {profileData.tenantSales.reduce((sum, s) => sum + s.totalAmount, 0).toLocaleString()}</p>
+                  
+                  <p style={{ margin: 0, color: '#15803d', fontSize: '0.875rem' }}>Total Paid (incl. Advance)</p>
+                  <p style={{ margin: 0, fontWeight: 600, color: 'var(--color-primary)' }}>
+                    Rs. {(profileData.payments.reduce((sum, p) => sum + p.amount, 0) + profileData.tenantSales.reduce((sum, s) => sum + s.advancePayment, 0)).toLocaleString()}
+                  </p>
+                  
+                  <p style={{ margin: 0, color: '#15803d', fontSize: '0.875rem' }}>Remaining Balance</p>
+                  <p style={{ margin: 0, fontWeight: 600, color: '#ef4444' }}>
+                    Rs. {(profileData.tenantSales.reduce((sum, s) => sum + s.totalAmount, 0) - (profileData.payments.reduce((sum, p) => sum + p.amount, 0) + profileData.tenantSales.reduce((sum, s) => sum + s.advancePayment, 0))).toLocaleString()}
+                  </p>
+                </div>
+              </div>
+            </div>
+            
+            <div style={{ marginTop: '1.5rem', display: 'flex', justifyContent: 'flex-end' }}>
+              <button className="btn btn-secondary" onClick={() => setIsProfileModalOpen(false)}>Close</button>
             </div>
           </div>
         </div>
