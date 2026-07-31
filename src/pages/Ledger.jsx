@@ -159,11 +159,22 @@ export default function Ledger() {
       tenantId: tenant.id,
       date: formData.get('date'),
       amount: parseFloat(formData.get('amount')),
-      receiptNo: `REC-${Date.now().toString().slice(-6)}`
+      receiptNo: formData.get('receiptNo') || 'XXXX'
     };
     
     await db.payments.add(newPayment);
     setIsPaymentModalOpen(false);
+  };
+  
+  const handleEditReceipt = async (payment) => {
+    const newReceipt = window.prompt("Enter new receipt number:", payment.receiptNo);
+    if (newReceipt !== null && newReceipt.trim() !== "" && newReceipt !== payment.receiptNo) {
+      try {
+        await db.payments.update(payment.id, { receiptNo: newReceipt.trim() });
+      } catch (err) {
+        alert("Failed to update receipt number: " + err.message);
+      }
+    }
   };
   
 
@@ -318,7 +329,13 @@ export default function Ledger() {
                     return (
                       <tr key={pmt.id || idx}>
                         <td>{new Date(pmt.date).toLocaleDateString()}</td>
-                        <td>{pmt.receiptNo || 'Payment'}</td>
+                        <td 
+                          style={{ cursor: 'pointer', textDecoration: 'underline dashed', color: 'var(--color-primary)', fontWeight: 500 }} 
+                          onClick={() => handleEditReceipt(pmt)}
+                          title="Click to edit receipt number"
+                        >
+                          {pmt.receiptNo || 'Payment'}
+                        </td>
                         <td style={{ fontWeight: 500 }}>{shop ? `Shop ${shop.shopNumber} (Block ${shop.block}, Floor ${shop.floor})` : tenantShops.map(s => `Shop ${s.shopNumber} (Block ${s.block}, Floor ${s.floor})`).join(', ') || 'General Portfolio Payment'}</td>
                         <td style={{ fontWeight: 500, color: '#10b981' }}>Rs. {pmt.amount.toLocaleString()}</td>
                       </tr>
@@ -358,6 +375,10 @@ export default function Ledger() {
               <div className="form-group">
                 <label className="form-label">Tenant</label>
                 <input type="text" className="form-control" readOnly value={tenant.name} />
+              </div>
+              <div className="form-group">
+                <label className="form-label">Receipt No.</label>
+                <input type="text" name="receiptNo" className="form-control" placeholder="Leave empty to default to XXXX" />
               </div>
               <div className="form-group">
                 <label className="form-label">Payment Date</label>
