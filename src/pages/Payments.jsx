@@ -98,11 +98,22 @@ export default function Payments() {
       tenantId: tenantId,
       date: formData.get('date'),
       amount: parseFloat(formData.get('amount')),
-      receiptNo: `REC-${Date.now().toString().slice(-6)}`
+      receiptNo: formData.get('receiptNo') || `REC-${Date.now().toString().slice(-6)}`
     };
     
     await db.payments.add(newPayment);
     setIsModalOpen(false);
+  };
+
+  const handleEditReceipt = async (payment) => {
+    const newReceipt = window.prompt("Enter new receipt number:", payment.receiptNo);
+    if (newReceipt !== null && newReceipt.trim() !== "" && newReceipt !== payment.receiptNo) {
+      try {
+        await db.payments.update(payment.id, { receiptNo: newReceipt.trim() });
+      } catch (err) {
+        alert("Failed to update receipt number: " + err.message);
+      }
+    }
   };
 
   const handleEditPaymentSubmit = async (e) => {
@@ -198,7 +209,13 @@ export default function Payments() {
                   const details = getPaymentDetails(payment);
                   return (
                     <tr key={payment.id}>
-                      <td style={{ fontWeight: 500, color: 'var(--color-primary)' }}>{payment.receiptNo}</td>
+                      <td 
+                        style={{ fontWeight: 500, color: 'var(--color-primary)', cursor: 'pointer', textDecoration: 'underline dashed' }} 
+                        onClick={() => handleEditReceipt(payment)}
+                        title="Click to edit receipt number"
+                      >
+                        {payment.receiptNo}
+                      </td>
                       <td>{new Date(payment.date).toLocaleDateString()}</td>
                       <td>{details?.tenant?.name || 'N/A'}</td>
                       <td>{details?.tenantShops ? details.tenantShops.map(s => `Shop ${s.shopNumber}`).join(', ') : 'N/A'}</td>
@@ -242,6 +259,10 @@ export default function Payments() {
                     )
                   })}
                 </select>
+              </div>
+              <div className="form-group">
+                <label className="form-label">Receipt No.</label>
+                <input type="text" name="receiptNo" className="form-control" placeholder="Leave empty to auto-generate" />
               </div>
               <div className="form-group">
                 <label className="form-label">Payment Date</label>
