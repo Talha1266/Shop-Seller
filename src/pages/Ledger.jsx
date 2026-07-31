@@ -3,7 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { useSupabase } from '../hooks/useSupabase';
 import { useDb } from '../hooks/useDb';
 import { supabase } from '../supabaseClient';
-import { Printer, FileText, Plus, X } from 'lucide-react';
+import { Printer, FileText, Plus, X, Edit, Lock, Unlock } from 'lucide-react';
 import { useReactToPrint } from 'react-to-print';
 
 const LedgerPrint = ({ tenant, tenantSales, tenantShops, payments, totalAmount, totalPaid, balance, innerRef }) => {
@@ -105,6 +105,9 @@ export default function Ledger() {
   const [selectedBlock, setSelectedBlock] = useState('');
   const [selectedId, setSelectedId] = useState('');
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
+  const [isUnlocked, setIsUnlocked] = useState(false);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [selectedPaymentForEdit, setSelectedPaymentForEdit] = useState(null);
   const printRef = useRef(null);
 
   useEffect(() => {
@@ -166,6 +169,40 @@ export default function Ledger() {
     setIsPaymentModalOpen(false);
   };
   
+  const handleUnlock = () => {
+    const code = window.prompt("SAFETY LOCK ACTIVE\n\nTo unlock payment edits, type 'CONFIRM':");
+    if (code === 'CONFIRM') {
+      setIsUnlocked(true);
+    } else if (code !== null) {
+      alert("Invalid code. System remains locked.");
+    }
+  };
+
+  const handleEditPaymentSubmit = async (e) => {
+    e.preventDefault();
+    const formData = new FormData(e.target);
+    const amount = parseFloat(formData.get('amount'));
+    const date = formData.get('date');
+    
+    try {
+      if (selectedPaymentForEdit.isAdvance) {
+        await db.sales.update(selectedPaymentForEdit.saleId, {
+          advancePayment: amount,
+          date: date
+        });
+      } else {
+        await db.payments.update(selectedPaymentForEdit.id, {
+          amount,
+          date
+        });
+      }
+      setIsEditModalOpen(false);
+      setSelectedPaymentForEdit(null);
+    } catch (err) {
+      alert("Error updating payment: " + err.message);
+    }
+  };
+  
   const handleEditReceipt = async (payment) => {
     const newReceipt = window.prompt("Enter new receipt number:", payment.receiptNo);
     if (newReceipt !== null && newReceipt.trim() !== "" && newReceipt !== payment.receiptNo) {
@@ -200,8 +237,18 @@ export default function Ledger() {
         balance={balance}
       />
 
-      <div className="page-header">
+      <div className="page-header" style={{ display: 'flex', flexWrap: 'wrap', gap: '1rem', justifyContent: 'space-between' }}>
         <h1 className="page-title">Tenant Ledger & Statements</h1>
+        {currentUser?.isAdmin && (
+          <button 
+            className={`btn ${isUnlocked ? 'btn-secondary' : 'btn-primary'}`}
+            style={{ backgroundColor: isUnlocked ? undefined : '#ef4444', borderColor: isUnlocked ? undefined : '#ef4444', color: isUnlocked ? '#ef4444' : 'white' }}
+            onClick={isUnlocked ? () => setIsUnlocked(false) : handleUnlock}
+          >
+            {isUnlocked ? <Lock size={16} /> : <Unlock size={16} />}
+            {isUnlocked ? 'Lock Edits' : 'Unlock Edits'}
+          </button>
+        )}
       </div>
 
       <div className="card" style={{ marginBottom: '2rem' }}>
@@ -309,6 +356,7 @@ export default function Ledger() {
                     <th>Receipt No / Type</th>
                     <th>Shop</th>
                     <th>Amount Paid</th>
+                    {isUnlocked && <th style={{ textAlign: 'right' }}>Actions</th>}
                   </tr>
                 </thead>
                 <tbody>
@@ -320,6 +368,13 @@ export default function Ledger() {
                         <td><span className="badge badge-secondary">Advance</span></td>
                         <td style={{ fontWeight: 500 }}>{shop ? `Shop ${shop.shopNumber} (Block ${shop.block}, Floor ${shop.floor})` : 'Unknown'}</td>
                         <td style={{ fontWeight: 500, color: '#10b981' }}>Rs. {sale.advancePayment.toLocaleString()}</td>
+                        {isUnlocked && (
+                          <td style={{ textAlign: 'right' }}>
+                            <button className="btn btn-secondary" style={{ padding: '0.25rem 0.5rem', color: '#d97706', borderColor: '#fef3c7', backgroundColor: '#fffbeb' }} onClick={() => { setSelectedPaymentForEdit({ id: sale.id, isAdvance: true, saleId: sale.id, receiptNo: 'Advance', date: sale.date, amount: sale.advancePayment }); setIsEditModalOpen(true); }}>
+                              <Edit size={16} /> Edit
+                            </button>
+                          </td>
+                        )}
                       </tr>
                     )
                   })}
@@ -338,6 +393,13 @@ export default function Ledger() {
                         </td>
                         <td style={{ fontWeight: 500 }}>{shop ? `Shop ${shop.shopNumber} (Block ${shop.block}, Floor ${shop.floor})` : tenantShops.map(s => `Shop ${s.shopNumber} (Block ${s.block}, Floor ${s.floor})`).join(', ') || 'General Portfolio Payment'}</td>
                         <td style={{ fontWeight: 500, color: '#10b981' }}>Rs. {pmt.amount.toLocaleString()}</td>
+                        {isUnlocked && (
+                          <td style={{ textAlign: 'right' }}>
+                            <button className="btn btn-secondary" style={{ padding: '0.25rem 0.5rem', color: '#d97706', borderColor: '#fef3c7', backgroundColor: '#fffbeb' }} onClick={() => { setSelectedPaymentForEdit({ ...pmt, isAdvance: false }); setIsEditModalOpen(true); }}>
+                              <Edit size={16} /> Edit
+                            </button>
+                          </td>
+                        )}
                       </tr>
                     )
                   })}
@@ -391,6 +453,36 @@ export default function Ledger() {
               <div style={{ marginTop: '1.5rem', display: 'flex', justifyContent: 'flex-end', gap: '1rem' }}>
                 <button type="button" className="btn btn-secondary" onClick={() => setIsPaymentModalOpen(false)}>Cancel</button>
                 <button type="submit" className="btn btn-primary">Save Payment</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {isEditModalOpen && selectedPaymentForEdit && (
+        <div className="modal-overlay" onClick={() => { setIsEditModalOpen(false); setSelectedPaymentForEdit(null); }}>
+          <div className="modal-content" onClick={e => e.stopPropagation()}>
+            <div className="modal-header">
+              <h2 className="modal-title">Edit Payment</h2>
+              <button className="modal-close" onClick={() => { setIsEditModalOpen(false); setSelectedPaymentForEdit(null); }}><X size={24} /></button>
+            </div>
+            <form onSubmit={handleEditPaymentSubmit}>
+              <div className="form-group">
+                <label className="form-label">Receipt No.</label>
+                <input type="text" className="form-control" disabled value={selectedPaymentForEdit.receiptNo || 'Payment'} />
+                {selectedPaymentForEdit.isAdvance && <p style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', margin: '4px 0 0 0' }}>This is a shop registration advance. Receipt number cannot be changed.</p>}
+              </div>
+              <div className="form-group">
+                <label className="form-label">Payment Date</label>
+                <input type="date" name="date" className="form-control" required defaultValue={selectedPaymentForEdit.date ? new Date(selectedPaymentForEdit.date).toISOString().split('T')[0] : ''} />
+              </div>
+              <div className="form-group">
+                <label className="form-label">Amount</label>
+                <input type="number" name="amount" className="form-control" required min="1" step="0.01" defaultValue={selectedPaymentForEdit.amount} />
+              </div>
+              <div style={{ marginTop: '1.5rem', display: 'flex', justifyContent: 'flex-end', gap: '1rem' }}>
+                <button type="button" className="btn btn-secondary" onClick={() => { setIsEditModalOpen(false); setSelectedPaymentForEdit(null); }}>Cancel</button>
+                <button type="submit" className="btn btn-primary">Save Changes</button>
               </div>
             </form>
           </div>
