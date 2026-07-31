@@ -98,7 +98,7 @@ export default function Payments() {
       tenantId: tenantId,
       date: formData.get('date'),
       amount: parseFloat(formData.get('amount')),
-      receiptNo: formData.get('receiptNo') || `REC-${Date.now().toString().slice(-6)}`
+      receiptNo: formData.get('receiptNo') || 'XXXX'
     };
     
     await db.payments.add(newPayment);
@@ -262,7 +262,7 @@ export default function Payments() {
               </div>
               <div className="form-group">
                 <label className="form-label">Receipt No.</label>
-                <input type="text" name="receiptNo" className="form-control" placeholder="Leave empty to auto-generate" />
+                <input type="text" name="receiptNo" className="form-control" placeholder="Leave empty to default to XXXX" />
               </div>
               <div className="form-group">
                 <label className="form-label">Payment Date</label>
