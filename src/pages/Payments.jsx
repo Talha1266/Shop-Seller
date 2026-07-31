@@ -172,7 +172,21 @@ export default function Payments({ currentUser }) {
   const validTenantIds = new Set(activeSalesByShop.map(s => s.tenantId).filter(Boolean));
   const validSaleIds = new Set(activeSalesByShop.map(s => s.id));
 
-  const filteredPayments = payments.filter(p =>
+  const advancePayments = sales
+    .filter(s => parseFloat(s.advancePayment || 0) > 0)
+    .map(s => ({
+      id: `adv-${s.id}`,
+      saleId: s.id,
+      tenantId: s.tenantId,
+      receiptNo: 'ADVANCE',
+      date: s.date || new Date().toISOString(),
+      amount: parseFloat(s.advancePayment || 0),
+      isAdvance: true
+    }));
+
+  const allPayments = [...payments, ...advancePayments];
+
+  const filteredPayments = allPayments.filter(p =>
     (p.tenantId && validTenantIds.has(p.tenantId)) ||
     (p.saleId && validSaleIds.has(p.saleId))
   ).filter(p => {
@@ -191,7 +205,7 @@ export default function Payments({ currentUser }) {
 
 
   // For printing the currently selected payment
-  const printData = printPaymentId ? payments.find(p => p.id === printPaymentId) : null;
+  const printData = printPaymentId ? allPayments.find(p => p.id === printPaymentId) : null;
   const printPaymentDetails = getPaymentDetails(printData);
 
   return (
@@ -255,11 +269,12 @@ export default function Payments({ currentUser }) {
                   return (
                     <tr key={payment.id}>
                       <td 
-                        style={{ fontWeight: 500, color: isUnlocked ? 'var(--color-primary)' : 'var(--color-text)', cursor: isUnlocked ? 'pointer' : 'default', textDecoration: isUnlocked ? 'underline dashed' : 'none' }} 
-                        onClick={() => handleEditReceipt(payment)}
-                        title={isUnlocked ? "Click to edit receipt number" : ""}
+                        style={{ fontWeight: 500, color: (isUnlocked && !payment.isAdvance) ? 'var(--color-primary)' : 'var(--color-text)', cursor: (isUnlocked && !payment.isAdvance) ? 'pointer' : 'default', textDecoration: (isUnlocked && !payment.isAdvance) ? 'underline dashed' : 'none' }} 
+                        onClick={() => { if (!payment.isAdvance) handleEditReceipt(payment); }}
+                        title={(isUnlocked && !payment.isAdvance) ? "Click to edit receipt number" : ""}
                       >
                         {payment.receiptNo}
+                        {payment.isAdvance && <span style={{ marginLeft: '8px', fontSize: '0.65rem', backgroundColor: '#eef2ff', color: '#4f46e5', padding: '2px 6px', borderRadius: '12px' }}>Registration</span>}
                       </td>
                       <td>{new Date(payment.date).toLocaleDateString()}</td>
                       <td>{details?.tenant?.name || 'N/A'}</td>
@@ -269,7 +284,7 @@ export default function Payments({ currentUser }) {
                         <button className="btn btn-secondary" style={{ padding: '0.25rem 0.5rem' }} onClick={() => triggerPrint(payment.id)}>
                           <Printer size={16} /> Print
                         </button>
-                        {isUnlocked && (
+                        {isUnlocked && !payment.isAdvance && (
                           <button className="btn btn-secondary" style={{ padding: '0.25rem 0.5rem', color: '#d97706', borderColor: '#fef3c7', backgroundColor: '#fffbeb' }} onClick={() => { setSelectedPaymentForEdit(payment); setIsEditModalOpen(true); }}>
                             <Edit size={16} /> Edit
                           </button>
