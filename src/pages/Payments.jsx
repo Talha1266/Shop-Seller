@@ -3,7 +3,7 @@ import { useLocation } from 'react-router-dom';
 import { useSupabase } from '../hooks/useSupabase';
 import { useDb } from '../hooks/useDb';
 import { supabase } from '../supabaseClient';
-import { Plus, X, Printer, Edit, Lock, LockOpen } from 'lucide-react';
+import { Plus, X, Printer, Edit, Lock, LockOpen, Search } from 'lucide-react';
 import { useReactToPrint } from 'react-to-print';
 
 // Receipt component for printing
@@ -64,6 +64,7 @@ export default function Payments({ currentUser }) {
   const [selectedPaymentForEdit, setSelectedPaymentForEdit] = useState(null);
   const [printPaymentId, setPrintPaymentId] = useState(null);
   const [preSelectedTenantId, setPreSelectedTenantId] = useState('');
+  const [searchQuery, setSearchQuery] = useState('');
   const location = useLocation();
 
   const handleUnlock = () => {
@@ -174,7 +175,14 @@ export default function Payments({ currentUser }) {
   const filteredPayments = payments.filter(p =>
     (p.tenantId && validTenantIds.has(p.tenantId)) ||
     (p.saleId && validSaleIds.has(p.saleId))
-  );
+  ).filter(p => {
+    if (!searchQuery) return true;
+    const q = searchQuery.toLowerCase();
+    const details = getPaymentDetails(p);
+    const tenantName = details?.tenant?.name?.toLowerCase() || '';
+    const receipt = p.receiptNo?.toLowerCase() || '';
+    return tenantName.includes(q) || receipt.includes(q);
+  });
 
   const activeSales = sales.filter(s => !s.isCompleted && occupiedShopIds.has(s.shopId));
   const activeTenants = Array.from(new Set(activeSales.map(s => s.tenantId)))
@@ -196,9 +204,20 @@ export default function Payments({ currentUser }) {
         tenant={printPaymentDetails?.tenant} 
       />
 
-      <div className="page-header">
+      <div className="page-header" style={{ display: 'flex', flexWrap: 'wrap', gap: '1rem', justifyContent: 'space-between' }}>
         <h1 className="page-title">Installment Payments</h1>
-        <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
+        <div style={{ display: 'flex', gap: '1rem', alignItems: 'center', flexWrap: 'wrap' }}>
+          <div style={{ position: 'relative' }}>
+            <Search size={18} style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: 'var(--color-text-muted)' }} />
+            <input 
+              type="text" 
+              className="form-control" 
+              placeholder="Search tenant or receipt..." 
+              value={searchQuery}
+              onChange={e => setSearchQuery(e.target.value)}
+              style={{ paddingLeft: '35px', minWidth: '250px' }}
+            />
+          </div>
           {currentUser?.isAdmin && (
             <button 
               className={`btn ${isUnlocked ? 'btn-secondary' : 'btn-primary'}`} 
