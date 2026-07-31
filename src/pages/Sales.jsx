@@ -67,8 +67,32 @@ export default function Sales() {
             <tbody>
               {sales.length === 0 ? (
                 <tr><td colSpan="6" style={{ textAlign: 'center', padding: '2rem', color: 'var(--color-text-muted)' }}>No sales allocations found.</td></tr>
-              ) : (
-                sales.map(sale => (
+              ) : (() => {
+                const floorOrder = (name = '') => {
+                  const n = name.toLowerCase().trim();
+                  if (n.includes('ground')) return 0;
+                  if (n.includes('first')  || n === '1st') return 1;
+                  if (n.includes('second') || n === '2nd') return 2;
+                  if (n.includes('third')  || n === '3rd') return 3;
+                  if (n.includes('fourth') || n === '4th') return 4;
+                  const num = parseInt(n);
+                  return isNaN(num) ? 99 : num + 10;
+                };
+
+                const sortedSales = [...sales].sort((a, b) => {
+                  const shopA = shops.find(s => s.id === a.shopId);
+                  const shopB = shops.find(s => s.id === b.shopId);
+
+                  const blockCmp = (shopA?.block || '').localeCompare(shopB?.block || '');
+                  if (blockCmp !== 0) return blockCmp;
+
+                  const floorCmp = floorOrder(shopA?.floor) - floorOrder(shopB?.floor);
+                  if (floorCmp !== 0) return floorCmp;
+
+                  return parseInt(shopA?.shopNumber || 0) - parseInt(shopB?.shopNumber || 0);
+                });
+
+                return sortedSales.map(sale => (
                   <tr key={sale.id}>
                     <td>{new Date(sale.date).toLocaleDateString()}</td>
                     <td style={{ fontWeight: 500 }}>{getShopName(sale.shopId)}</td>
@@ -77,8 +101,8 @@ export default function Sales() {
                     <td>Rs. {sale.advancePayment.toLocaleString()}</td>
                     <td>Rs. {(sale.totalAmount - sale.advancePayment).toLocaleString()}</td>
                   </tr>
-                ))
-              )}
+                ));
+              })()}
             </tbody>
           </table>
         </div>
