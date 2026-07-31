@@ -131,18 +131,51 @@ export default function Dashboard() {
           {areaData.length > 0 ? (
             <div style={{ height: 300 }}>
               <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={areaData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
+                <AreaChart data={areaData} margin={{ top: 10, right: 30, left: 10, bottom: 0 }}>
                   <defs>
                     <linearGradient id="colorRevenue" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.8}/>
+                      <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.4}/>
                       <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0}/>
                     </linearGradient>
                   </defs>
-                  <XAxis dataKey="name" />
-                  <YAxis />
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                  <RechartsTooltip formatter={(value) => `Rs. ${value.toLocaleString()}`} />
-                  <Area type="monotone" dataKey="Revenue" stroke="#8b5cf6" fillOpacity={1} fill="url(#colorRevenue)" />
+                  <XAxis 
+                    dataKey="name" 
+                    axisLine={false} 
+                    tickLine={false} 
+                    tick={{ fill: '#64748b', fontSize: 12 }} 
+                    dy={10}
+                    tickFormatter={(tickItem) => {
+                      if (!tickItem) return '';
+                      const [year, month] = tickItem.split('-');
+                      return new Date(year, month - 1).toLocaleDateString('en-US', { month: 'short', year: '2-digit' });
+                    }}
+                  />
+                  <YAxis 
+                    axisLine={false} 
+                    tickLine={false} 
+                    tick={{ fill: '#64748b', fontSize: 12 }}
+                    tickFormatter={(val) => val >= 1000000 ? `${(val/1000000).toFixed(1)}M` : val >= 1000 ? `${(val/1000).toFixed(0)}k` : val}
+                  />
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+                  <RechartsTooltip 
+                    cursor={{ stroke: '#8b5cf6', strokeWidth: 1, strokeDasharray: '4 4' }}
+                    content={({ active, payload, label }) => {
+                      if (active && payload && payload.length) {
+                        const [year, month] = label.split('-');
+                        const formattedDate = new Date(year, month - 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+                        return (
+                          <div style={{ backgroundColor: 'rgba(255, 255, 255, 0.95)', padding: '1rem', border: '1px solid #e2e8f0', borderRadius: '12px', boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)', backdropFilter: 'blur(8px)' }}>
+                            <p style={{ margin: '0 0 0.25rem 0', fontWeight: 600, color: '#64748b', fontSize: '0.875rem' }}>{formattedDate}</p>
+                            <p style={{ margin: 0, fontWeight: 700, fontSize: '1.25rem', color: '#8b5cf6' }}>
+                              Rs. {payload[0].value.toLocaleString()}
+                            </p>
+                          </div>
+                        );
+                      }
+                      return null;
+                    }} 
+                  />
+                  <Area type="monotone" dataKey="Revenue" stroke="#8b5cf6" strokeWidth={4} fillOpacity={1} fill="url(#colorRevenue)" activeDot={{ r: 6, fill: '#8b5cf6', stroke: '#fff', strokeWidth: 2 }} />
                 </AreaChart>
               </ResponsiveContainer>
             </div>
