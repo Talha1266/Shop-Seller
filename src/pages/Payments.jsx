@@ -3,7 +3,7 @@ import { useLocation } from 'react-router-dom';
 import { useSupabase } from '../hooks/useSupabase';
 import { useDb } from '../hooks/useDb';
 import { supabase } from '../supabaseClient';
-import { Plus, X, Printer } from 'lucide-react';
+import { Plus, X, Printer, Edit } from 'lucide-react';
 import { useReactToPrint } from 'react-to-print';
 
 // Receipt component for printing
@@ -59,6 +59,8 @@ const ReceiptPrint = ({ payment, tenantShops, tenant, innerRef }) => {
 export default function Payments() {
   const db = useDb();
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [selectedPaymentForEdit, setSelectedPaymentForEdit] = useState(null);
   const [printPaymentId, setPrintPaymentId] = useState(null);
   const [preSelectedTenantId, setPreSelectedTenantId] = useState('');
   const location = useLocation();
@@ -101,6 +103,21 @@ export default function Payments() {
     
     await db.payments.add(newPayment);
     setIsModalOpen(false);
+  };
+
+  const handleEditPaymentSubmit = async (e) => {
+    e.preventDefault();
+    const formData = new FormData(e.target);
+    const amount = parseFloat(formData.get('amount'));
+    const date = formData.get('date');
+    
+    await db.payments.update(selectedPaymentForEdit.id, {
+      amount,
+      date
+    });
+    
+    setIsEditModalOpen(false);
+    setSelectedPaymentForEdit(null);
   };
 
   const getPaymentDetails = (payment) => {
@@ -186,9 +203,12 @@ export default function Payments() {
                       <td>{details?.tenant?.name || 'N/A'}</td>
                       <td>{details?.tenantShops ? details.tenantShops.map(s => `Shop ${s.shopNumber}`).join(', ') : 'N/A'}</td>
                       <td style={{ fontWeight: 600 }}>Rs. {payment.amount.toLocaleString()}</td>
-                      <td>
+                      <td style={{ display: 'flex', gap: '0.5rem' }}>
                         <button className="btn btn-secondary" style={{ padding: '0.25rem 0.5rem' }} onClick={() => triggerPrint(payment.id)}>
                           <Printer size={16} /> Print
+                        </button>
+                        <button className="btn btn-secondary" style={{ padding: '0.25rem 0.5rem', color: '#d97706', borderColor: '#fef3c7', backgroundColor: '#fffbeb' }} onClick={() => { setSelectedPaymentForEdit(payment); setIsEditModalOpen(true); }}>
+                          <Edit size={16} /> Edit
                         </button>
                       </td>
                     </tr>
@@ -243,6 +263,38 @@ export default function Payments() {
                   No active allocations found. Please create a sale first.
                 </p>
               )}
+            </form>
+          </div>
+        </div>
+      )}
+
+      {isEditModalOpen && selectedPaymentForEdit && (
+        <div className="modal-overlay" onClick={() => { setIsEditModalOpen(false); setSelectedPaymentForEdit(null); }}>
+          <div className="modal-content" onClick={e => e.stopPropagation()}>
+            <div className="modal-header">
+              <h2 className="modal-title">Edit Payment</h2>
+              <button className="modal-close" onClick={() => { setIsEditModalOpen(false); setSelectedPaymentForEdit(null); }}><X size={24} /></button>
+            </div>
+            <form onSubmit={handleEditPaymentSubmit}>
+              <div className="form-group">
+                <label className="form-label">Receipt No.</label>
+                <input type="text" className="form-control" disabled value={selectedPaymentForEdit.receiptNo} />
+              </div>
+              <div className="form-group">
+                <label className="form-label">Payment Date</label>
+                <input type="date" name="date" className="form-control" required defaultValue={new Date(selectedPaymentForEdit.date).toISOString().split('T')[0]} />
+              </div>
+              <div className="form-group">
+                <label className="form-label">Amount</label>
+                <input type="number" name="amount" className="form-control" required min="1" step="0.01" defaultValue={selectedPaymentForEdit.amount} />
+              </div>
+              
+              <div style={{ marginTop: '1.5rem', display: 'flex', justifyContent: 'flex-end', gap: '1rem' }}>
+                <button type="button" className="btn btn-secondary" onClick={() => { setIsEditModalOpen(false); setSelectedPaymentForEdit(null); }}>Cancel</button>
+                <button type="submit" className="btn btn-primary">
+                  Save Changes
+                </button>
+              </div>
             </form>
           </div>
         </div>

@@ -36,10 +36,20 @@ export default function Dashboard() {
   const totalRevenueExpected = activeSales.reduce((sum, sale) => sum + parseFloat(sale.totalAmount || 0), 0);
   const totalReceived = activePayments.reduce((sum, p) => sum + parseFloat(p.amount || 0), 0) +
                         activeSales.reduce((sum, sale) => sum + parseFloat(sale.advancePayment || 0), 0);
+  
+  const maxPotentialRevenue = shops.reduce((sum, shop) => {
+    if (shop.status === 'Occupied') {
+      const sale = activeSales.find(s => s.shopId === shop.id);
+      return sum + (sale ? parseFloat(sale.totalAmount || 0) : parseFloat(shop.price || 0));
+    } else {
+      return sum + parseFloat(shop.price || 0);
+    }
+  }, 0);
 
   const stats = [
     { label: 'Total Shops', value: shopsCount, icon: Store, color: '#2563eb', bg: '#eff6ff' },
     { label: 'Shops Occupied', value: shopsSold, icon: ShoppingCart, color: '#10b981', bg: '#d1fae5' },
+    { label: 'Total Value (Max Rev)', value: `Rs. ${maxPotentialRevenue.toLocaleString()}`, icon: DollarSign, color: '#ec4899', bg: '#fce7f3' },
     { label: 'Expected Revenue', value: `Rs. ${totalRevenueExpected.toLocaleString()}`, icon: DollarSign, color: '#f59e0b', bg: '#fef3c7' },
     { label: 'Total Received', value: `Rs. ${totalReceived.toLocaleString()}`, icon: Wallet, color: '#8b5cf6', bg: '#ede9fe' }
   ];
