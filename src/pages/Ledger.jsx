@@ -97,7 +97,7 @@ const LedgerPrint = ({ tenant, tenantSales, tenantShops, payments, totalAmount, 
   );
 };
 
-export default function Ledger() {
+export default function Ledger({ currentUser }) {
   const db = useDb();
   const location = useLocation();
   const navigate = useNavigate();
