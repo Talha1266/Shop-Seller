@@ -47,7 +47,7 @@ function AppContent({ currentUser, handleLogout }) {
             <Route path="/contractor" element={<Contractor />} />
             <Route path="/summary" element={<Summary />} />
             
-            {currentUser.email === 'talhanaveed89@gmail.com' && (
+            {currentUser.isAdmin && (
               <Route path="/admin" element={<AdminPanel />} />
             )}
             
@@ -73,12 +73,14 @@ function App() {
     
     // Auto approve root admin
     if (user.email === 'talhanaveed89@gmail.com') {
+      user.isAdmin = true;
       setCurrentUser(user);
       setIsApproved(true);
       return;
     }
 
-    const { data } = await supabase.from('users').select('is_approved').eq('username', user.email).single();
+    const { data } = await supabase.from('users').select('is_approved, is_admin').eq('username', user.email).single();
+    user.isAdmin = data?.is_admin || false;
     setCurrentUser(user);
     setIsApproved(data?.is_approved || false);
   };

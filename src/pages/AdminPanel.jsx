@@ -5,38 +5,52 @@ import { Trash2, User, Check, X } from 'lucide-react';
 
 export default function AdminPanel() {
   const dbUsers = useSupabase('users') || [];
-  const [optimisticUsers, setOptimisticUsers] = useState({});
+  const [optimisticStatus, setOptimisticStatus] = useState({});
 
   const users = dbUsers.map(u => {
-    if (optimisticUsers[u.id] !== undefined) {
-      return { ...u, is_approved: optimisticUsers[u.id] };
+    if (optimisticStatus[u.id]) {
+      return { ...u, ...optimisticStatus[u.id] };
     }
     return u;
   });
 
   const handleToggleApproval = async (user) => {
     if (user.username === 'talhanaveed89@gmail.com') {
-      alert("Cannot revoke access from the root administrator.");
+      alert("Cannot modify access for the root administrator.");
       return;
     }
     
     const targetState = !user.is_approved;
-    setOptimisticUsers(prev => ({ ...prev, [user.id]: targetState }));
+    setOptimisticStatus(prev => ({ ...prev, [user.id]: { ...user, ...prev[user.id], is_approved: targetState } }));
     
     try {
       const { error } = await supabase.from('users').update({ is_approved: targetState }).eq('id', user.id);
-      if (error) {
-        console.error("Update error:", error);
-        alert("Failed to update user approval: " + error.message);
-        setOptimisticUsers(prev => {
-          const next = { ...prev };
-          delete next[user.id];
-          return next;
-        });
-      }
+      if (error) throw error;
     } catch (err) {
       alert("Error: " + err.message);
-      setOptimisticUsers(prev => {
+      setOptimisticStatus(prev => {
+        const next = { ...prev };
+        delete next[user.id];
+        return next;
+      });
+    }
+  };
+
+  const handleToggleAdmin = async (user) => {
+    if (user.username === 'talhanaveed89@gmail.com') {
+      alert("Cannot modify access for the root administrator.");
+      return;
+    }
+    
+    const targetState = !user.is_admin;
+    setOptimisticStatus(prev => ({ ...prev, [user.id]: { ...user, ...prev[user.id], is_admin: targetState } }));
+    
+    try {
+      const { error } = await supabase.from('users').update({ is_admin: targetState }).eq('id', user.id);
+      if (error) throw error;
+    } catch (err) {
+      alert("Error: " + err.message);
+      setOptimisticStatus(prev => {
         const next = { ...prev };
         delete next[user.id];
         return next;
@@ -90,9 +104,11 @@ export default function AdminPanel() {
                     )}
                   </td>
                   <td>
-                    <span className={`badge ${user.role === 'admin' ? 'badge-warning' : 'badge-secondary'}`}>
-                      {user.role}
-                    </span>
+                    {user.is_admin || user.username === 'talhanaveed89@gmail.com' ? (
+                      <span className="badge badge-warning">Admin</span>
+                    ) : (
+                      <span className="badge badge-neutral">User</span>
+                    )}
                   </td>
                   <td style={{ color: 'var(--color-text-muted)', fontFamily: 'monospace' }}>#{user.id}</td>
                   <td style={{ textAlign: 'right' }}>
@@ -103,10 +119,18 @@ export default function AdminPanel() {
                       disabled={user.username === 'talhanaveed89@gmail.com'}
                     >
                       {user.is_approved ? (
-                        <><X size={14} style={{ marginRight: '4px' }} /> Revoke</>
+                        <><X size={14} style={{ marginRight: '4px' }} /> Revoke Access</>
                       ) : (
                         <><Check size={14} style={{ marginRight: '4px' }} /> Approve</>
                       )}
+                    </button>
+                    <button 
+                      className={`btn ${user.is_admin ? 'btn-secondary' : 'btn-primary'}`}
+                      style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem', marginRight: '0.5rem', backgroundColor: user.is_admin ? undefined : '#4f46e5', borderColor: user.is_admin ? undefined : '#4338ca' }}
+                      onClick={() => handleToggleAdmin(user)}
+                      disabled={user.username === 'talhanaveed89@gmail.com'}
+                    >
+                      {user.is_admin ? 'Remove Admin' : 'Make Admin'}
                     </button>
                     <button 
                       className="btn btn-secondary"
