@@ -2,7 +2,7 @@ import { useSupabase } from '../hooks/useSupabase';
 import { useDb } from '../hooks/useDb';
 import { supabase } from '../supabaseClient';
 import { useNavigate } from 'react-router-dom';
-import { Store, ShoppingCart, DollarSign, Wallet, Bell } from 'lucide-react';
+import { Store, ShoppingCart, DollarSign, Wallet, Bell, AlertCircle, HardHat, TrendingDown } from 'lucide-react';
 import { 
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer,
   PieChart, Pie, Cell, Legend
@@ -16,7 +16,7 @@ export default function Dashboard() {
   const shops = useSupabase('shops') || [];
   const sales = useSupabase('sales') || [];
   const payments = useSupabase('payments') || [];
-
+  const contractorPayments = useSupabase('contractor_payments') || [];
   const tenants = useSupabase('tenants') || [];
 
   const occupiedShopIds = new Set(shops.filter(s => s.status === 'Occupied').map(s => s.id));
@@ -39,6 +39,8 @@ export default function Dashboard() {
   const totalReceived = activePayments.reduce((sum, p) => sum + parseFloat(p.amount || 0), 0) +
                         activeSales.reduce((sum, sale) => sum + parseFloat(sale.advancePayment || 0), 0);
   
+  const tenantOutstanding = totalRevenueExpected - totalReceived;
+
   const maxPotentialRevenue = shops.reduce((sum, shop) => {
     if (shop.status === 'Occupied') {
       const sale = activeSales.find(s => s.shopId === shop.id);
@@ -48,12 +50,18 @@ export default function Dashboard() {
     }
   }, 0);
 
+  const totalContractorPaid = contractorPayments.reduce((sum, p) => sum + parseFloat(p.amount || 0), 0);
+  const contractorPending = maxPotentialRevenue - totalContractorPaid;
+
   const stats = [
     { label: 'Total Shops', value: shopsCount, icon: Store, color: '#2563eb', bg: '#eff6ff', link: '/shops' },
     { label: 'Shops Occupied', value: shopsSold, icon: ShoppingCart, color: '#10b981', bg: '#d1fae5', link: '/shops' },
-    { label: 'Total Value (Max Rev)', value: `Rs. ${maxPotentialRevenue.toLocaleString()}`, icon: DollarSign, color: '#ec4899', bg: '#fce7f3' },
     { label: 'Expected Revenue', value: `Rs. ${totalRevenueExpected.toLocaleString()}`, icon: DollarSign, color: '#f59e0b', bg: '#fef3c7' },
-    { label: 'Total Received', value: `Rs. ${totalReceived.toLocaleString()}`, icon: Wallet, color: '#8b5cf6', bg: '#ede9fe' }
+    { label: 'Total Received', value: `Rs. ${totalReceived.toLocaleString()}`, icon: Wallet, color: '#8b5cf6', bg: '#ede9fe' },
+    { label: 'Tenant Outstanding', value: `Rs. ${tenantOutstanding.toLocaleString()}`, icon: AlertCircle, color: '#ef4444', bg: '#fee2e2' },
+    { label: 'Total Value (Max Rev)', value: `Rs. ${maxPotentialRevenue.toLocaleString()}`, icon: DollarSign, color: '#ec4899', bg: '#fce7f3' },
+    { label: 'Contractor Paid', value: `Rs. ${totalContractorPaid.toLocaleString()}`, icon: HardHat, color: '#10b981', bg: '#d1fae5', link: '/contractor' },
+    { label: 'Contractor Pending', value: `Rs. ${contractorPending.toLocaleString()}`, icon: TrendingDown, color: '#f59e0b', bg: '#fef3c7', link: '/contractor' }
   ];
 
   // Process data for Occupancy Pie Chart
