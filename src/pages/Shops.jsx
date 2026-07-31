@@ -24,7 +24,7 @@ export default function Shops({ currentUser }) {
   const tenants = useSupabase('tenants') || [];
 
   const handleUnlock = () => {
-    const code = window.prompt("SAFETY LOCK ACTIVE\\n\\nTo unlock structural edits and price changes, type 'CONFIRM':");
+    const code = window.prompt("SAFETY LOCK ACTIVE\n\nTo unlock structural edits and price changes, type 'CONFIRM':");
     if (code === 'CONFIRM') {
       setIsUnlocked(true);
     } else if (code !== null) {

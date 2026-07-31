@@ -67,7 +67,7 @@ export default function Payments({ currentUser }) {
   const location = useLocation();
 
   const handleUnlock = () => {
-    const code = window.prompt("SAFETY LOCK ACTIVE\\n\\nTo unlock payment edits, type 'CONFIRM':");
+    const code = window.prompt("SAFETY LOCK ACTIVE\n\nTo unlock payment edits, type 'CONFIRM':");
     if (code === 'CONFIRM') {
       setIsUnlocked(true);
     } else if (code !== null) {
