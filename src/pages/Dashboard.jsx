@@ -1,6 +1,7 @@
 import { useSupabase } from '../hooks/useSupabase';
 import { useDb } from '../hooks/useDb';
 import { supabase } from '../supabaseClient';
+import { useNavigate } from 'react-router-dom';
 import { Store, ShoppingCart, DollarSign, Wallet, Bell } from 'lucide-react';
 import { 
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer,
@@ -11,6 +12,7 @@ const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8b5cf6', '#ef4444'
 
 export default function Dashboard() {
   const db = useDb();
+  const navigate = useNavigate();
   const shops = useSupabase('shops') || [];
   const sales = useSupabase('sales') || [];
   const payments = useSupabase('payments') || [];
@@ -47,8 +49,8 @@ export default function Dashboard() {
   }, 0);
 
   const stats = [
-    { label: 'Total Shops', value: shopsCount, icon: Store, color: '#2563eb', bg: '#eff6ff' },
-    { label: 'Shops Occupied', value: shopsSold, icon: ShoppingCart, color: '#10b981', bg: '#d1fae5' },
+    { label: 'Total Shops', value: shopsCount, icon: Store, color: '#2563eb', bg: '#eff6ff', link: '/shops' },
+    { label: 'Shops Occupied', value: shopsSold, icon: ShoppingCart, color: '#10b981', bg: '#d1fae5', link: '/shops' },
     { label: 'Total Value (Max Rev)', value: `Rs. ${maxPotentialRevenue.toLocaleString()}`, icon: DollarSign, color: '#ec4899', bg: '#fce7f3' },
     { label: 'Expected Revenue', value: `Rs. ${totalRevenueExpected.toLocaleString()}`, icon: DollarSign, color: '#f59e0b', bg: '#fef3c7' },
     { label: 'Total Received', value: `Rs. ${totalReceived.toLocaleString()}`, icon: Wallet, color: '#8b5cf6', bg: '#ede9fe' }
@@ -111,7 +113,20 @@ export default function Dashboard() {
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '1.5rem', marginBottom: '2rem' }}>
         {stats.map((stat, i) => (
-          <div key={i} className="card" style={{ display: 'flex', alignItems: 'center', gap: '1.5rem' }}>
+          <div 
+            key={i} 
+            className="card" 
+            style={{ 
+              display: 'flex', 
+              alignItems: 'center', 
+              gap: '1.5rem',
+              cursor: stat.link ? 'pointer' : 'default',
+              transition: 'all 0.2s ease',
+            }}
+            onClick={() => { if (stat.link) navigate(stat.link); }}
+            onMouseEnter={stat.link ? (e) => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 10px 15px -3px rgba(0, 0, 0, 0.1)'; } : undefined}
+            onMouseLeave={stat.link ? (e) => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = ''; } : undefined}
+          >
             <div style={{ width: '3rem', height: '3rem', borderRadius: '50%', backgroundColor: stat.bg, color: stat.color, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <stat.icon size={24} />
             </div>
