@@ -1,11 +1,28 @@
 import { useState } from 'react';
 import { useSupabase } from '../hooks/useSupabase';
 import { supabase } from '../supabaseClient';
-import { Trash2, User, Check, X } from 'lucide-react';
+import { Trash2, User, Check, X, Download } from 'lucide-react';
+import { exportAllDataToExcel } from '../utils/exportToExcel';
+import { useProject } from '../contexts/ProjectContext';
 
 export default function AdminPanel() {
   const dbUsers = useSupabase('users') || [];
+  const { activeProject } = useProject();
   const [optimisticStatus, setOptimisticStatus] = useState({});
+  const [isExporting, setIsExporting] = useState(false);
+
+  const handleExportData = async () => {
+    if (!activeProject) return;
+    setIsExporting(true);
+    try {
+      await exportAllDataToExcel(activeProject.id, activeProject.name);
+    } catch (error) {
+      console.error("Export failed:", error);
+      alert("Failed to export data: " + error.message);
+    } finally {
+      setIsExporting(false);
+    }
+  };
 
   const users = dbUsers.map(u => {
     if (optimisticStatus[u.id]) {
@@ -71,8 +88,17 @@ export default function AdminPanel() {
 
   return (
     <div>
-      <div className="page-header">
+      <div className="page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <h1 className="page-title">User Management</h1>
+        <button 
+          className="btn btn-primary" 
+          onClick={handleExportData}
+          disabled={isExporting}
+          style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', backgroundColor: '#10b981', borderColor: '#059669' }}
+        >
+          <Download size={18} />
+          {isExporting ? 'Exporting...' : 'Export All Data to Excel'}
+        </button>
       </div>
 
       <div className="card" style={{ padding: 0 }}>
