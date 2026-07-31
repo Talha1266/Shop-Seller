@@ -138,10 +138,17 @@ export default function Payments({ currentUser }) {
     const amount = parseFloat(formData.get('amount'));
     const date = formData.get('date');
     
-    await db.payments.update(selectedPaymentForEdit.id, {
-      amount,
-      date
-    });
+    if (selectedPaymentForEdit.isAdvance) {
+      await db.sales.update(selectedPaymentForEdit.saleId, {
+        advancePayment: amount,
+        date: date
+      });
+    } else {
+      await db.payments.update(selectedPaymentForEdit.id, {
+        amount,
+        date
+      });
+    }
     
     setIsEditModalOpen(false);
     setSelectedPaymentForEdit(null);
@@ -284,7 +291,7 @@ export default function Payments({ currentUser }) {
                         <button className="btn btn-secondary" style={{ padding: '0.25rem 0.5rem' }} onClick={() => triggerPrint(payment.id)}>
                           <Printer size={16} /> Print
                         </button>
-                        {isUnlocked && !payment.isAdvance && (
+                        {isUnlocked && (
                           <button className="btn btn-secondary" style={{ padding: '0.25rem 0.5rem', color: '#d97706', borderColor: '#fef3c7', backgroundColor: '#fffbeb' }} onClick={() => { setSelectedPaymentForEdit(payment); setIsEditModalOpen(true); }}>
                             <Edit size={16} /> Edit
                           </button>
@@ -362,6 +369,7 @@ export default function Payments({ currentUser }) {
               <div className="form-group">
                 <label className="form-label">Receipt No.</label>
                 <input type="text" className="form-control" disabled value={selectedPaymentForEdit.receiptNo} />
+                {selectedPaymentForEdit.isAdvance && <p style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', margin: '4px 0 0 0' }}>This is a shop registration advance. Receipt number cannot be changed.</p>}
               </div>
               <div className="form-group">
                 <label className="form-label">Payment Date</label>
