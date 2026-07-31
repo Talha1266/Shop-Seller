@@ -11,6 +11,7 @@ import Ledger from './pages/Ledger';
 import Login from './pages/Login';
 import AdminPanel from './pages/AdminPanel';
 import Summary from './pages/Summary';
+import Contractor from './pages/Contractor';
 import ProjectsDashboard from './pages/ProjectsDashboard';
 import { supabase } from './supabaseClient';
 import { ProjectProvider, useProject } from './contexts/ProjectContext';
@@ -43,6 +44,7 @@ function AppContent({ currentUser, handleLogout }) {
             <Route path="/ledger" element={<Ledger />} />
             <Route path="/sales" element={<Sales />} />
             <Route path="/payments" element={<Payments />} />
+            <Route path="/contractor" element={<Contractor />} />
             <Route path="/summary" element={<Summary />} />
             
             {currentUser.email === 'talhanaveed89@gmail.com' && (
