@@ -36,11 +36,13 @@ export default function Layout({ children, currentUser, onLogout }) {
       <aside className={`sidebar ${isSidebarOpen ? 'open' : ''}`}>
         <div className="sidebar-header" style={{ justifyContent: 'space-between' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-            <Store size={24} color="#f59e0b" />
-            <span className="sidebar-title">{activeProject ? activeProject.name : 'PlazaManager'}</span>
+            <Store size={24} className="text-primary" />
+            <span className="sidebar-title" style={{ fontWeight: 700, background: 'linear-gradient(45deg, var(--color-primary), #8b5cf6)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
+              {activeProject ? activeProject.name : 'PlazaManager'}
+            </span>
           </div>
           <button className="mobile-only sidebar-close-btn" onClick={() => setIsSidebarOpen(false)}>
-            <X size={24} color="#fff" />
+            <X size={24} className="text-main" />
           </button>
         </div>
         
@@ -74,7 +76,7 @@ export default function Layout({ children, currentUser, onLogout }) {
             <button className="mobile-only menu-btn" onClick={() => setIsSidebarOpen(true)}>
               <Menu size={24} />
             </button>
-            <h2 className="topbar-title">{activeProject ? activeProject.name : 'Plaza Management System'}</h2>
+            <h2 className="topbar-title" style={{ fontWeight: 600, color: 'var(--color-text-main)' }}>{activeProject ? activeProject.name : 'Plaza Management System'}</h2>
           </div>
           <div className="topbar-user" style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
             <span style={{ fontSize: '0.875rem', color: 'var(--color-text-muted)', textTransform: 'capitalize' }}>
