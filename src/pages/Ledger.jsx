@@ -3,7 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { useSupabase } from '../hooks/useSupabase';
 import { useDb } from '../hooks/useDb';
 import { supabase } from '../supabaseClient';
-import { Printer, FileText, Plus, X, Edit, Lock, Unlock } from 'lucide-react';
+import { Printer, FileText, Plus, X, Edit, Lock, Unlock, User } from 'lucide-react';
 import { useReactToPrint } from 'react-to-print';
 
 const LedgerPrint = ({ tenant, tenantSales, tenantShops, payments, totalAmount, totalPaid, balance, innerRef }) => {
@@ -107,6 +107,7 @@ export default function Ledger({ currentUser }) {
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
   const [isUnlocked, setIsUnlocked] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
   const [selectedPaymentForEdit, setSelectedPaymentForEdit] = useState(null);
   const printRef = useRef(null);
 
@@ -313,7 +314,14 @@ export default function Ledger({ currentUser }) {
         <div className="card" style={{ padding: 0 }}>
           <div style={{ padding: '1.5rem', borderBottom: '1px solid var(--color-border)', display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: '1rem' }}>
             <div style={{ flex: '1 1 100%' }}>
-              <h2 style={{ fontSize: '1.25rem', fontWeight: 600, margin: '0 0 0.5rem 0' }}>{tenant.name}</h2>
+              <h2 
+                style={{ fontSize: '1.25rem', fontWeight: 600, margin: '0 0 0.5rem 0', cursor: 'pointer', color: 'var(--color-primary)' }}
+                className="action-link"
+                onClick={() => setIsProfileModalOpen(true)}
+                title="Click to view full profile"
+              >
+                {tenant.name}
+              </h2>
               <p style={{ color: 'var(--color-text-muted)', margin: 0 }}>
                 {searchMode === 'tenant' && tenantShops.length > 1 ? 'Combined Ledger for: ' : 'Ledger for: '}
                 {tenantShops.map(s => `Shop ${s.shopNumber} (Block ${s.block})`).join(', ')}
@@ -485,6 +493,76 @@ export default function Ledger({ currentUser }) {
                 <button type="submit" className="btn btn-primary">Save Changes</button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {isProfileModalOpen && tenant && (
+        <div className="modal-overlay" onClick={() => setIsProfileModalOpen(false)}>
+          <div className="modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: '600px' }}>
+            <div className="modal-header">
+              <h2 className="modal-title">Tenant Profile</h2>
+              <button className="modal-close" onClick={() => setIsProfileModalOpen(false)}><X size={24} /></button>
+            </div>
+            
+            <div style={{ display: 'grid', gap: '1.5rem', marginTop: '1rem' }}>
+              <div style={{ padding: '1rem', backgroundColor: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '6px' }}>
+                <h3 style={{ fontSize: '1rem', fontWeight: 600, margin: '0 0 1rem 0', display: 'flex', alignItems: 'center', gap: '0.5rem', borderBottom: '1px solid #e2e8f0', paddingBottom: '0.5rem' }}>
+                  <User size={18} /> Personal Details
+                </h3>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
+                  <p style={{ margin: 0, color: 'var(--color-text-muted)', fontSize: '0.875rem' }}>Name</p>
+                  <p style={{ margin: 0, fontWeight: 500 }}>{tenant.name}</p>
+                  
+                  <p style={{ margin: 0, color: 'var(--color-text-muted)', fontSize: '0.875rem' }}>CNIC</p>
+                  <p style={{ margin: 0, fontWeight: 500 }}>{tenant.cnic}</p>
+                  
+                  <p style={{ margin: 0, color: 'var(--color-text-muted)', fontSize: '0.875rem' }}>Mobile</p>
+                  <p style={{ margin: 0, fontWeight: 500 }}>{tenant.mobile}</p>
+                </div>
+              </div>
+
+              <div style={{ padding: '1rem', border: '1px solid #e2e8f0', borderRadius: '6px' }}>
+                <h3 style={{ fontSize: '1rem', fontWeight: 600, margin: '0 0 1rem 0', display: 'flex', alignItems: 'center', gap: '0.5rem', borderBottom: '1px solid #e2e8f0', paddingBottom: '0.5rem' }}>
+                  <FileText size={18} /> Allocated Shops
+                </h3>
+                {tenantShops.length === 0 ? (
+                  <p style={{ margin: 0, color: 'var(--color-text-muted)' }}>No shops currently allocated.</p>
+                ) : (
+                  <ul style={{ margin: 0, paddingLeft: '1.5rem' }}>
+                    {tenantShops.map(s => (
+                      <li key={s.id} style={{ marginBottom: '0.25rem', fontWeight: 500 }}>
+                        Shop {s.shopNumber} (Block {s.block}, Floor {s.floor})
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+
+              <div style={{ padding: '1rem', backgroundColor: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '6px' }}>
+                <h3 style={{ fontSize: '1rem', fontWeight: 600, margin: '0 0 1rem 0', display: 'flex', alignItems: 'center', gap: '0.5rem', borderBottom: '1px solid #bbf7d0', paddingBottom: '0.5rem', color: '#166534' }}>
+                  Financial Summary
+                </h3>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
+                  <p style={{ margin: 0, color: '#15803d', fontSize: '0.875rem' }}>Total Agreed Amount</p>
+                  <p style={{ margin: 0, fontWeight: 600 }}>Rs. {totalAmount.toLocaleString()}</p>
+                  
+                  <p style={{ margin: 0, color: '#15803d', fontSize: '0.875rem' }}>Total Paid (incl. Advance)</p>
+                  <p style={{ margin: 0, fontWeight: 600, color: 'var(--color-primary)' }}>
+                    Rs. {totalPaid.toLocaleString()}
+                  </p>
+                  
+                  <p style={{ margin: 0, color: '#15803d', fontSize: '0.875rem' }}>Remaining Balance</p>
+                  <p style={{ margin: 0, fontWeight: 600, color: '#ef4444' }}>
+                    Rs. {balance.toLocaleString()}
+                  </p>
+                </div>
+              </div>
+            </div>
+            
+            <div style={{ marginTop: '1.5rem', display: 'flex', justifyContent: 'flex-end' }}>
+              <button className="btn btn-secondary" onClick={() => setIsProfileModalOpen(false)}>Close</button>
+            </div>
           </div>
         </div>
       )}
