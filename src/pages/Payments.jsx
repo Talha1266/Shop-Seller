@@ -5,6 +5,7 @@ import { useDb } from '../hooks/useDb';
 import { supabase } from '../supabaseClient';
 import { Plus, X, Printer, Edit, Lock, LockOpen, Search } from 'lucide-react';
 import { useReactToPrint } from 'react-to-print';
+import { useProject } from '../contexts/ProjectContext';
 
 // Receipt component for printing
 const ReceiptPrint = ({ payment, tenantShops, tenant, innerRef, projectName }) => {
@@ -58,6 +59,7 @@ const ReceiptPrint = ({ payment, tenantShops, tenant, innerRef, projectName }) =
 
 export default function Payments({ currentUser }) {
   const db = useDb();
+  const { activeProject } = useProject();
   const [isUnlocked, setIsUnlocked] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
