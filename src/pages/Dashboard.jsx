@@ -210,7 +210,7 @@ export default function Dashboard() {
                   return (
                     <tr key={item.tenant.id}>
                       <td style={{ fontWeight: 500 }}>{item.tenant.name}</td>
-                      <td>{item.tenantShops.length > 0 ? item.tenantShops.map(s => `Shop ${s.shopNumber}`).join(', ') : 'N/A'}</td>
+                      <td>{item.tenantShops.length > 0 ? item.tenantShops.map(s => `Shop ${s.shopNumber} (Block ${s.block})`).join(', ') : 'N/A'}</td>
                       <td>Rs. {item.totalAmount.toLocaleString()}</td>
                       <td style={{ color: '#10b981' }}>Rs. {item.totalPaid.toLocaleString()}</td>
                       <td style={{ fontWeight: 600, color: '#b91c1c' }}>Rs. {item.balance.toLocaleString()}</td>
