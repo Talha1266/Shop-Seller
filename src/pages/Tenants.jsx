@@ -7,7 +7,7 @@ import { useProject } from '../contexts/ProjectContext';
 import { Plus, X, Paperclip, Download, Trash2, FileText, Printer, User, Lock, Unlock } from 'lucide-react';
 import { useReactToPrint } from 'react-to-print';
 
-const TenantProfilePrint = ({ tenant, tenantSales, tenantShops, payments, innerRef }) => {
+const TenantProfilePrint = ({ tenant, tenantSales, tenantShops, payments, innerRef, projectName }) => {
   if (!tenant) return <div ref={innerRef}></div>;
   
   const totalAmount = tenantSales.reduce((sum, s) => sum + s.totalAmount, 0);
@@ -25,7 +25,7 @@ const TenantProfilePrint = ({ tenant, tenantSales, tenantShops, payments, innerR
       </style>
       <div style={{ border: '2px solid #000', padding: '30px', maxWidth: '800px', margin: '0 auto' }}>
         <div style={{ textAlign: 'center', marginBottom: '30px', borderBottom: '2px solid #000', paddingBottom: '20px' }}>
-          <h1 style={{ margin: '0 0 10px 0', fontSize: '28px', textTransform: 'uppercase' }}>Plaza Management</h1>
+          <h1 style={{ margin: '0 0 10px 0', fontSize: '28px', textTransform: 'uppercase' }}>{projectName || 'Plaza Management'}</h1>
           <h2 style={{ margin: 0, color: '#555' }}>Tenant Profile</h2>
         </div>
         
@@ -355,6 +355,7 @@ export default function Tenants({ currentUser }) {
         tenantSales={profileData?.tenantSales}
         tenantShops={profileData?.tenantShops}
         payments={profileData?.payments}
+        projectName={activeProject?.name}
       />
       <div className="page-header">
         <h1 className="page-title">Tenants Directory</h1>

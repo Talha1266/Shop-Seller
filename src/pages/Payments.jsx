@@ -7,7 +7,7 @@ import { Plus, X, Printer, Edit, Lock, LockOpen, Search } from 'lucide-react';
 import { useReactToPrint } from 'react-to-print';
 
 // Receipt component for printing
-const ReceiptPrint = ({ payment, tenantShops, tenant, innerRef }) => {
+const ReceiptPrint = ({ payment, tenantShops, tenant, innerRef, projectName }) => {
   if (!payment) return <div ref={innerRef}></div>;
   
   return (
@@ -20,7 +20,7 @@ const ReceiptPrint = ({ payment, tenantShops, tenant, innerRef }) => {
       </style>
       <div style={{ border: '2px solid #000', padding: '30px', maxWidth: '800px', margin: '0 auto' }}>
         <div style={{ textAlign: 'center', marginBottom: '30px', borderBottom: '2px solid #000', paddingBottom: '20px' }}>
-          <h1 style={{ margin: '0 0 10px 0', fontSize: '28px', textTransform: 'uppercase' }}>Plaza Management</h1>
+          <h1 style={{ margin: '0 0 10px 0', fontSize: '28px', textTransform: 'uppercase' }}>{projectName || 'Plaza Management'}</h1>
           <h2 style={{ margin: 0, color: '#555' }}>Payment Receipt</h2>
         </div>
         
@@ -223,6 +223,7 @@ export default function Payments({ currentUser }) {
         payment={printData} 
         tenantShops={printPaymentDetails?.tenantShops} 
         tenant={printPaymentDetails?.tenant} 
+        projectName={activeProject?.name}
       />
 
       <div className="page-header" style={{ display: 'flex', flexWrap: 'wrap', gap: '1rem', justifyContent: 'space-between' }}>
