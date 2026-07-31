@@ -3,11 +3,12 @@ import { useNavigate } from 'react-router-dom';
 import { useSupabase } from '../hooks/useSupabase';
 import { useDb } from '../hooks/useDb';
 import { supabase } from '../supabaseClient';
-import { Plus, X, Layers, ChevronDown, ChevronRight, Store, Trash2, UserMinus } from 'lucide-react';
+import { Plus, X, Layers, ChevronDown, ChevronRight, Store, Trash2, UserMinus, Lock, LockOpen } from 'lucide-react';
 
-export default function Shops() {
+export default function Shops({ currentUser }) {
   const db = useDb();
   const navigate = useNavigate();
+  const [isUnlocked, setIsUnlocked] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isBulkAdd, setIsBulkAdd] = useState(false);
   
@@ -21,6 +22,19 @@ export default function Shops() {
   const sales = useSupabase('sales') || [];
   const payments = useSupabase('payments') || [];
   const tenants = useSupabase('tenants') || [];
+
+  const handleUnlock = () => {
+    const code = window.prompt("SAFETY LOCK ACTIVE\\n\\nTo unlock structural edits and price changes, type 'CONFIRM':");
+    if (code === 'CONFIRM') {
+      setIsUnlocked(true);
+    } else if (code !== null) {
+      alert("Invalid code. System remains locked.");
+    }
+  };
+
+  const handleLock = () => {
+    setIsUnlocked(false);
+  };
 
   const toggleBlock = (block) => {
     setExpandedBlocks(prev => ({ ...prev, [block]: !prev[block] }));
@@ -348,9 +362,22 @@ export default function Shops() {
     <div>
       <div className="page-header">
         <h1 className="page-title">Shops Management</h1>
-        <button className="btn btn-primary" onClick={() => { setIsBulkAdd(false); setIsModalOpen(true); }}>
-          <Plus size={18} /> Add Shop
-        </button>
+        <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
+          {currentUser?.isAdmin && (
+            <button 
+              className={`btn ${isUnlocked ? 'btn-secondary' : 'btn-primary'}`} 
+              onClick={isUnlocked ? handleLock : handleUnlock}
+              style={isUnlocked ? { backgroundColor: '#f1f5f9', color: '#475569' } : { backgroundColor: '#dc2626', borderColor: '#b91c1c', color: '#fff' }}
+            >
+              {isUnlocked ? <><LockOpen size={18} /> Structure Unlocked</> : <><Lock size={18} /> Unlock Structure</>}
+            </button>
+          )}
+          {isUnlocked && (
+            <button className="btn btn-primary" onClick={() => { setIsBulkAdd(false); setIsModalOpen(true); }}>
+              <Plus size={18} /> Add Shop
+            </button>
+          )}
+        </div>
       </div>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
@@ -406,14 +433,16 @@ export default function Shops() {
                         Pending: Rs. {calculatePendingForShops(blockShops).toLocaleString()}
                       </span>
                     )}
-                    <button 
-                      onClick={(e) => handleDeleteBlock(e, blockName)}
-                      className="icon-btn" 
-                      title="Force Delete Block"
-                      style={{ color: 'var(--color-error)' }}
-                    >
-                      <Trash2 size={20} />
-                    </button>
+                    {isUnlocked && (
+                      <button 
+                        onClick={(e) => handleDeleteBlock(e, blockName)}
+                        className="icon-btn" 
+                        title="Force Delete Block"
+                        style={{ color: 'var(--color-error)' }}
+                      >
+                        <Trash2 size={20} />
+                      </button>
+                    )}
                   </div>
                 </div>
 
@@ -541,28 +570,41 @@ export default function Shops() {
                                       <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
                                         {shop.status === 'Occupied' ? (
                                           <>
-                                            <p
-                                              onClick={e => openPriceModal(e, shop)}
-                                              title="Click to edit total amount"
-                                              style={{ margin: 0, fontSize: '0.875rem', color: 'var(--color-text-muted)', fontWeight: 500, cursor: 'pointer', borderBottom: '1px dashed #94a3b8', display: 'inline-block' }}
-                                            >
-                                              Total: Rs. {totalAllocatedAmount.toLocaleString()}
-                                            </p>
+                                            {isUnlocked ? (
+                                              <p
+                                                onClick={e => openPriceModal(e, shop)}
+                                                title="Click to edit total amount"
+                                                style={{ margin: 0, fontSize: '0.875rem', color: 'var(--color-primary)', fontWeight: 500, cursor: 'pointer', borderBottom: '1px dashed var(--color-primary)', display: 'inline-block' }}
+                                              >
+                                                Total: Rs. {totalAllocatedAmount.toLocaleString()}
+                                              </p>
+                                            ) : (
+                                              <p style={{ margin: 0, fontSize: '0.875rem', color: 'var(--color-text-muted)', fontWeight: 500 }}>
+                                                Total: Rs. {totalAllocatedAmount.toLocaleString()}
+                                              </p>
+                                            )}
                                             <p style={{ margin: 0, fontSize: '0.875rem', color: balance > 0 ? '#ef4444' : 'var(--color-success)', fontWeight: 600 }}>
                                               Bal: Rs. {balance.toLocaleString()}
                                             </p>
                                           </>
                                         ) : (
-                                          <p
-                                            onClick={e => openPriceModal(e, shop)}
-                                            title="Click to edit price"
-                                            style={{ margin: 0, fontSize: '0.875rem', color: 'var(--color-text-muted)', fontWeight: 500, cursor: 'pointer', borderBottom: '1px dashed #94a3b8', display: 'inline-block' }}
-                                          >
-                                            Price: Rs. {shop.price.toLocaleString()}
-                                          </p>
+                                          isUnlocked ? (
+                                            <p
+                                              onClick={e => openPriceModal(e, shop)}
+                                              title="Click to edit price"
+                                              style={{ margin: 0, fontSize: '0.875rem', color: 'var(--color-primary)', fontWeight: 500, cursor: 'pointer', borderBottom: '1px dashed var(--color-primary)', display: 'inline-block' }}
+                                            >
+                                              Price: Rs. {shop.price.toLocaleString()}
+                                            </p>
+                                          ) : (
+                                            <p style={{ margin: 0, fontSize: '0.875rem', color: 'var(--color-text-muted)', fontWeight: 500 }}>
+                                              Price: Rs. {shop.price.toLocaleString()}
+                                            </p>
+                                          )
                                         )}
                                       </div>
-                                      {shop.status === 'Available' ? (
+                                      {isUnlocked && (
+                                        shop.status === 'Available' ? (
                                         <button
                                           onClick={(e) => handleDeleteShop(e, shop)}
                                           style={{
@@ -586,7 +628,7 @@ export default function Shops() {
                                         >
                                           <UserMinus size={16} />
                                         </button>
-                                      )}
+                                      ))}
                                     </div>
                                   </div>
                                 );

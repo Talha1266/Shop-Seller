@@ -39,7 +39,7 @@ function AppContent({ currentUser, handleLogout }) {
           <Routes>
             <Route path="/" element={<Dashboard />} />
             <Route path="/setup" element={<Setup />} />
-            <Route path="/shops" element={<Shops />} />
+            <Route path="/shops" element={<Shops currentUser={currentUser} />} />
             <Route path="/tenants" element={<Tenants />} />
             <Route path="/ledger" element={<Ledger />} />
             <Route path="/sales" element={<Sales />} />
