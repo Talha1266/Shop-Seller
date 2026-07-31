@@ -4,7 +4,7 @@ import { useSupabase } from '../hooks/useSupabase';
 import { useDb } from '../hooks/useDb';
 import { supabase } from '../supabaseClient';
 import { useProject } from '../contexts/ProjectContext';
-import { Plus, X, Paperclip, Download, Trash2, FileText, Printer, User, Lock, Unlock } from 'lucide-react';
+import { Plus, X, Paperclip, Download, Trash2, Printer, FileText, User, Lock, Unlock, Search } from 'lucide-react';
 import { useReactToPrint } from 'react-to-print';
 
 const TenantProfilePrint = ({ tenant, tenantSales, tenantShops, payments, innerRef, projectName }) => {
@@ -60,6 +60,7 @@ export default function Tenants({ currentUser }) {
   const db = useDb();
   const { activeProject } = useProject();
   const [isUnlocked, setIsUnlocked] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
 
   const handleUnlock = () => {
     const code = window.prompt("SAFETY LOCK ACTIVE\n\nTo unlock tenant deletion, type 'CONFIRM':");
@@ -376,6 +377,18 @@ export default function Tenants({ currentUser }) {
         </div>
       </div>
 
+      <div style={{ marginBottom: '1.5rem', position: 'relative' }}>
+        <Search size={18} style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--color-text-muted)' }} />
+        <input 
+          type="text" 
+          placeholder="Search tenants by name, CNIC, or mobile..." 
+          className="form-control"
+          style={{ paddingLeft: '2.5rem', backgroundColor: '#fff' }}
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+        />
+      </div>
+
       <div className="card" style={{ padding: 0 }}>
         <div className="table-container">
           <table className="table">
@@ -404,7 +417,13 @@ export default function Tenants({ currentUser }) {
                   return isNaN(num) ? 99 : num + 10;
                 };
 
-                const sortedTenants = [...tenants].sort((a, b) => {
+                const filteredTenants = tenants.filter(t => 
+                  t.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
+                  t.cnic.includes(searchQuery) ||
+                  (t.mobile && t.mobile.includes(searchQuery))
+                );
+
+                const sortedTenants = [...filteredTenants].sort((a, b) => {
                   const saleA = sales.find(s => s.tenantId === a.id);
                   const saleB = sales.find(s => s.tenantId === b.id);
                   const shopA = saleA ? shops.find(s => s.id === saleA.shopId) : null;
