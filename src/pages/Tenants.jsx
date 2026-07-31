@@ -4,7 +4,7 @@ import { useSupabase } from '../hooks/useSupabase';
 import { useDb } from '../hooks/useDb';
 import { supabase } from '../supabaseClient';
 import { useProject } from '../contexts/ProjectContext';
-import { Plus, X, Paperclip, Download, Trash2, FileText, Printer, User } from 'lucide-react';
+import { Plus, X, Paperclip, Download, Trash2, FileText, Printer, User, Lock, Unlock } from 'lucide-react';
 import { useReactToPrint } from 'react-to-print';
 
 const TenantProfilePrint = ({ tenant, tenantSales, tenantShops, payments, innerRef }) => {
@@ -56,9 +56,19 @@ const TenantProfilePrint = ({ tenant, tenantSales, tenantShops, payments, innerR
   );
 };
 
-export default function Tenants() {
+export default function Tenants({ currentUser }) {
   const db = useDb();
   const { activeProject } = useProject();
+  const [isUnlocked, setIsUnlocked] = useState(false);
+
+  const handleUnlock = () => {
+    const code = window.prompt("SAFETY LOCK ACTIVE\n\nTo unlock tenant deletion, type 'CONFIRM':");
+    if (code === 'CONFIRM') {
+      setIsUnlocked(true);
+    } else if (code !== null) {
+      alert("Invalid confirmation code.");
+    }
+  };
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isDocModalOpen, setIsDocModalOpen] = useState(false);
   const [selectedTenantForDocs, setSelectedTenantForDocs] = useState(null);
@@ -348,9 +358,21 @@ export default function Tenants() {
       />
       <div className="page-header">
         <h1 className="page-title">Tenants Directory</h1>
-        <button className="btn btn-primary" onClick={() => { setIsModalOpen(true); }}>
-          <Plus size={18} /> Register Tenant & Allocate Shop
-        </button>
+        <div style={{ display: 'flex', gap: '1rem' }}>
+          {currentUser?.isAdmin && (
+            <button 
+              className={`btn ${isUnlocked ? 'btn-secondary' : 'btn-primary'}`}
+              style={{ backgroundColor: isUnlocked ? undefined : '#ef4444', borderColor: isUnlocked ? undefined : '#ef4444', color: isUnlocked ? '#ef4444' : 'white' }}
+              onClick={isUnlocked ? () => setIsUnlocked(false) : handleUnlock}
+            >
+              {isUnlocked ? <Lock size={16} /> : <Unlock size={16} />}
+              {isUnlocked ? 'Lock Deletion' : 'Unlock Deletion'}
+            </button>
+          )}
+          <button className="btn btn-primary" onClick={() => { setIsModalOpen(true); }}>
+            <Plus size={18} /> Register Tenant & Allocate Shop
+          </button>
+        </div>
       </div>
 
       <div className="card" style={{ padding: 0 }}>
@@ -422,14 +444,16 @@ export default function Tenants() {
                       >
                         <Paperclip size={14} /> Docs
                       </button>
-                      <button 
-                        className="btn btn-secondary" 
-                        style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem', color: '#ef4444', borderColor: '#f87171', marginLeft: '0.5rem' }}
-                        onClick={() => handleDeleteTenant(tenant)}
-                        title="Delete Tenant"
-                      >
-                        <Trash2 size={14} />
-                      </button>
+                      {isUnlocked && (
+                        <button 
+                          className="btn btn-secondary" 
+                          style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem', color: '#ef4444', borderColor: '#f87171', marginLeft: '0.5rem' }}
+                          onClick={() => handleDeleteTenant(tenant)}
+                          title="Delete Tenant"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      )}
                     </td>
                   </tr>
                 ));
