@@ -3,7 +3,6 @@ import { saveAs } from 'file-saver';
 import { supabase } from '../supabaseClient';
 
 export async function exportAllDataToExcel(projectId, projectName) {
-  // 1. Fetch data
   const [
     { data: shops },
     { data: tenants },
@@ -26,29 +25,75 @@ export async function exportAllDataToExcel(projectId, projectName) {
   workbook.created = new Date();
   workbook.modified = new Date();
 
-  // Helper for formatting header row
-  const styleHeader = (worksheet, headers) => {
+  const styleHeader = (worksheet, headers, bgColor = 'FF4F46E5') => {
     worksheet.columns = headers.map(h => ({ header: h.label, key: h.key, width: h.width || 15 }));
     const row = worksheet.getRow(1);
-    row.font = { bold: true, color: { argb: 'FFFFFFFF' } };
-    row.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF4F46E5' } }; // Indigo-600
+    row.font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 12 };
+    row.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: bgColor } };
     row.alignment = { vertical: 'middle', horizontal: 'center' };
+    row.height = 25;
     row.commit();
   };
 
-  // ----- Sheet 1: Shops & Sales -----
-  const wsShops = workbook.addWorksheet('Shops & Sales');
+  const setCurrency = (cell) => {
+    cell.numFmt = '"Rs." #,##0.00';
+  };
+
+  // ----- 1. Project Dashboard -----
+  const wsOverview = workbook.addWorksheet('1. Dashboard Overview');
+  wsOverview.getColumn('A').width = 35;
+  wsOverview.getColumn('B').width = 25;
+  
+  wsOverview.mergeCells('A1:B1');
+  const titleCell = wsOverview.getCell('A1');
+  titleCell.value = `${projectName || 'Project'} - Executive Summary`;
+  titleCell.font = { size: 16, bold: true, color: { argb: 'FFFFFFFF' } };
+  titleCell.alignment = { vertical: 'middle', horizontal: 'center' };
+  titleCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1E293B' } };
+  wsOverview.getRow(1).height = 40;
+
+  let totalShopValue = 0;
+  let totalSaleValue = 0;
+  let totalPaymentsReceived = 0;
+  
+  (shops || []).forEach(s => totalShopValue += parseFloat(s.price || 0));
+  (sales || []).forEach(s => totalSaleValue += parseFloat(s.totalAmount || 0));
+  (payments || []).forEach(p => totalPaymentsReceived += parseFloat(p.amount || 0));
+  
+  const metrics = [
+    ['Total Shops', (shops || []).length],
+    ['Occupied Shops (Sold)', (shops || []).filter(s => s.status === 'Occupied').length],
+    ['Available Shops', (shops || []).filter(s => s.status === 'Available').length],
+    ['Total Base Value (All Shops)', totalShopValue],
+    ['Total Sale Value (Sold Shops Only)', totalSaleValue],
+    ['Total Payments Received', totalPaymentsReceived],
+    ['Outstanding Balance (Sold Shops)', totalSaleValue - totalPaymentsReceived],
+  ];
+
+  metrics.forEach((metric, index) => {
+    const row = wsOverview.addRow({ A: metric[0], B: metric[1] });
+    row.font = { size: 12 };
+    if (index >= 3) {
+      setCurrency(row.getCell('B'));
+    }
+  });
+
+
+  // ----- 2. Master Shop Register -----
+  const wsShops = workbook.addWorksheet('2. Master Shop Register');
   styleHeader(wsShops, [
     { label: 'Shop No.', key: 'shopNo', width: 12 },
     { label: 'Block', key: 'block', width: 10 },
     { label: 'Floor', key: 'floor', width: 15 },
-    { label: 'Listed Price', key: 'price', width: 20 },
+    { label: 'Side', key: 'side', width: 12 },
     { label: 'Status', key: 'status', width: 15 },
     { label: 'Tenant Name', key: 'tenant', width: 25 },
-    { label: 'Sale Amount', key: 'saleAmt', width: 20 },
-    { label: 'Paid Amount', key: 'paidAmt', width: 20 },
-    { label: 'Pending Bal.', key: 'pending', width: 20 },
-  ]);
+    { label: 'Tenant Mobile', key: 'mobile', width: 18 },
+    { label: 'Base Price', key: 'price', width: 20 },
+    { label: 'Final Sale Price', key: 'saleAmt', width: 20 },
+    { label: 'Amount Paid', key: 'paidAmt', width: 20 },
+    { label: 'Balance Due', key: 'pending', width: 20 },
+  ], 'FF2563EB'); // Blue
 
   let shopRow = 2;
   const sortedShops = [...(shops||[])].sort((a,b) => a.block.localeCompare(b.block) || a.shopNumber.localeCompare(b.shopNumber, undefined, {numeric: true}));
@@ -86,53 +131,84 @@ export async function exportAllDataToExcel(projectId, projectName) {
       shopNo: shop.shopNumber,
       block: shop.block,
       floor: shop.floor,
-      price: parseFloat(shop.price || 0),
+      side: shop.side || 'Front',
       status: shop.status,
       tenant: tenant ? tenant.name : 'N/A',
+      mobile: tenant ? tenant.mobile : 'N/A',
+      price: parseFloat(shop.price || 0),
       saleAmt: allocatedAmount > 0 ? allocatedAmount : 0,
       paidAmt: paidAmount,
     });
     
-    // Formula for Pending: Sale Amt - Paid Amt (G2 - H2)
     if (allocatedAmount > 0) {
-      row.getCell('pending').value = { formula: `G${shopRow}-H${shopRow}`, result: allocatedAmount - paidAmount };
+      row.getCell('pending').value = { formula: `I${shopRow}-J${shopRow}`, result: allocatedAmount - paidAmount };
     } else {
       row.getCell('pending').value = 0;
     }
     
-    row.getCell('price').numFmt = '"Rs." #,##0.00';
-    row.getCell('saleAmt').numFmt = '"Rs." #,##0.00';
-    row.getCell('paidAmt').numFmt = '"Rs." #,##0.00';
-    row.getCell('pending').numFmt = '"Rs." #,##0.00';
+    setCurrency(row.getCell('price'));
+    setCurrency(row.getCell('saleAmt'));
+    setCurrency(row.getCell('paidAmt'));
+    setCurrency(row.getCell('pending'));
     
     shopRow++;
   }
 
-  // Totals Row
-  const totalRow = wsShops.addRow({
-    shopNo: 'TOTAL',
-  });
-  totalRow.font = { bold: true };
+  const sTotalRow = wsShops.addRow({ shopNo: 'TOTAL' });
+  sTotalRow.font = { bold: true };
   if (shopRow > 2) {
-    totalRow.getCell('price').value = { formula: `SUM(D2:D${shopRow-1})` };
-    totalRow.getCell('saleAmt').value = { formula: `SUM(G2:G${shopRow-1})` };
-    totalRow.getCell('paidAmt').value = { formula: `SUM(H2:H${shopRow-1})` };
-    totalRow.getCell('pending').value = { formula: `SUM(I2:I${shopRow-1})` };
+    sTotalRow.getCell('price').value = { formula: `SUM(H2:H${shopRow-1})` };
+    sTotalRow.getCell('saleAmt').value = { formula: `SUM(I2:I${shopRow-1})` };
+    sTotalRow.getCell('paidAmt').value = { formula: `SUM(J2:J${shopRow-1})` };
+    sTotalRow.getCell('pending').value = { formula: `SUM(K2:K${shopRow-1})` };
   }
-  totalRow.getCell('price').numFmt = '"Rs." #,##0.00';
-  totalRow.getCell('saleAmt').numFmt = '"Rs." #,##0.00';
-  totalRow.getCell('paidAmt').numFmt = '"Rs." #,##0.00';
-  totalRow.getCell('pending').numFmt = '"Rs." #,##0.00';
+  setCurrency(sTotalRow.getCell('price'));
+  setCurrency(sTotalRow.getCell('saleAmt'));
+  setCurrency(sTotalRow.getCell('paidAmt'));
+  setCurrency(sTotalRow.getCell('pending'));
 
 
-  // ----- Sheet 2: Installment Payments -----
-  const wsPayments = workbook.addWorksheet('Installment Payments');
+  // ----- 3. Tenants Directory -----
+  const wsTenants = workbook.addWorksheet('3. Tenants Profiles');
+  styleHeader(wsTenants, [
+    { label: 'Tenant Name', key: 'name', width: 25 },
+    { label: 'CNIC', key: 'cnic', width: 20 },
+    { label: 'Mobile No.', key: 'mobile', width: 18 },
+    { label: 'Email Address', key: 'email', width: 30 },
+    { label: 'Residential Address', key: 'address', width: 40 },
+    { label: 'Emergency Contact', key: 'emergency', width: 20 },
+    { label: 'Owned Shops', key: 'shops', width: 30 },
+  ], 'FF059669'); // Green
+
+  for (const t of (tenants||[])) {
+    const tSales = (sales||[]).filter(s => s.tenantId === t.id);
+    const tShops = tSales.map(s => {
+      const shop = (shops||[]).find(sh => sh.id === s.shopId);
+      return shop ? `${shop.shopNumber} (${shop.block})` : '';
+    }).filter(Boolean).join(', ');
+
+    wsTenants.addRow({
+      name: t.name,
+      cnic: t.cnic,
+      mobile: t.mobile,
+      email: t.email,
+      address: t.address,
+      emergency: t.emergencyContact,
+      shops: tShops || 'None'
+    });
+  }
+
+
+  // ----- 4. Payment History (Ledger) -----
+  const wsPayments = workbook.addWorksheet('4. Payment History');
   styleHeader(wsPayments, [
-    { label: 'Receipt No.', key: 'receipt', width: 15 },
     { label: 'Date', key: 'date', width: 15 },
+    { label: 'Receipt No.', key: 'receipt', width: 15 },
     { label: 'Tenant Name', key: 'tenant', width: 25 },
-    { label: 'Amount', key: 'amount', width: 20 },
-  ]);
+    { label: 'Tenant CNIC', key: 'cnic', width: 20 },
+    { label: 'Associated Shops', key: 'shops', width: 30 },
+    { label: 'Amount Paid', key: 'amount', width: 20 },
+  ], 'FFD97706'); // Amber
 
   let paymentRow = 2;
   const sortedPayments = [...(payments||[])].sort((a,b) => new Date(a.date) - new Date(b.date));
@@ -140,56 +216,45 @@ export async function exportAllDataToExcel(projectId, projectName) {
     const tenantId = p.tenantId || ((sales||[]).find(s => s.id === p.saleId)?.tenantId);
     const tenant = (tenants||[]).find(t => t.id === tenantId);
     
+    let tShops = '';
+    if (tenant) {
+      const tSales = (sales||[]).filter(s => s.tenantId === tenant.id);
+      tShops = tSales.map(s => {
+        const shop = (shops||[]).find(sh => sh.id === s.shopId);
+        return shop ? shop.shopNumber : '';
+      }).filter(Boolean).join(', ');
+    }
+    
     const row = wsPayments.addRow({
-      receipt: p.receiptNo || 'N/A',
       date: new Date(p.date).toLocaleDateString(),
+      receipt: p.receiptNo || 'N/A',
       tenant: tenant ? tenant.name : 'Unknown',
+      cnic: tenant ? tenant.cnic : 'N/A',
+      shops: tShops,
       amount: parseFloat(p.amount || 0)
     });
-    row.getCell('amount').numFmt = '"Rs." #,##0.00';
+    setCurrency(row.getCell('amount'));
     paymentRow++;
   }
 
-  const pTotalRow = wsPayments.addRow({ tenant: 'TOTAL' });
+  const pTotalRow = wsPayments.addRow({ shops: 'TOTAL PAYMENTS RECEIVED' });
   pTotalRow.font = { bold: true };
   if (paymentRow > 2) {
-    pTotalRow.getCell('amount').value = { formula: `SUM(D2:D${paymentRow-1})` };
+    pTotalRow.getCell('amount').value = { formula: `SUM(F2:F${paymentRow-1})` };
   }
-  pTotalRow.getCell('amount').numFmt = '"Rs." #,##0.00';
+  setCurrency(pTotalRow.getCell('amount'));
 
 
-  // ----- Sheet 3: Tenants -----
-  const wsTenants = workbook.addWorksheet('Tenants Directory');
-  styleHeader(wsTenants, [
-    { label: 'Name', key: 'name', width: 25 },
-    { label: 'CNIC', key: 'cnic', width: 20 },
-    { label: 'Mobile', key: 'mobile', width: 15 },
-    { label: 'Email', key: 'email', width: 25 },
-    { label: 'Address', key: 'address', width: 35 },
-    { label: 'Emergency Contact', key: 'emergency', width: 20 },
-  ]);
-  for (const t of (tenants||[])) {
-    wsTenants.addRow({
-      name: t.name,
-      cnic: t.cnic,
-      mobile: t.mobile,
-      email: t.email,
-      address: t.address,
-      emergency: t.emergencyContact
-    });
-  }
-
-
-  // ----- Sheet 4: Contractors -----
-  const wsContractors = workbook.addWorksheet('Contractors');
+  // ----- 5. Contractors & Construction -----
+  const wsContractors = workbook.addWorksheet('5. Contractors Overview');
   styleHeader(wsContractors, [
     { label: 'Contractor Name', key: 'name', width: 25 },
-    { label: 'Trade/Specialty', key: 'trade', width: 20 },
-    { label: 'Phone', key: 'phone', width: 15 },
-    { label: 'Total Budget', key: 'budget', width: 20 },
+    { label: 'Trade / Specialty', key: 'trade', width: 25 },
+    { label: 'Phone', key: 'phone', width: 18 },
+    { label: 'Total Budget (Max)', key: 'budget', width: 20 },
     { label: 'Total Paid', key: 'paid', width: 20 },
     { label: 'Balance Due', key: 'balance', width: 20 },
-  ]);
+  ], 'FF7C3AED'); // Purple
 
   let cRow = 2;
   for (const c of (contractors||[])) {
@@ -206,33 +271,34 @@ export async function exportAllDataToExcel(projectId, projectName) {
     
     row.getCell('balance').value = { formula: `D${cRow}-E${cRow}`, result: parseFloat(c.total_budget || 0) - paidSum };
     
-    row.getCell('budget').numFmt = '"Rs." #,##0.00';
-    row.getCell('paid').numFmt = '"Rs." #,##0.00';
-    row.getCell('balance').numFmt = '"Rs." #,##0.00';
+    setCurrency(row.getCell('budget'));
+    setCurrency(row.getCell('paid'));
+    setCurrency(row.getCell('balance'));
     
     cRow++;
   }
 
-  const cTotalRow = wsContractors.addRow({ phone: 'TOTAL' });
+  const cTotalRow = wsContractors.addRow({ phone: 'TOTAL CONTRACTOR BUDGETS' });
   cTotalRow.font = { bold: true };
   if (cRow > 2) {
     cTotalRow.getCell('budget').value = { formula: `SUM(D2:D${cRow-1})` };
     cTotalRow.getCell('paid').value = { formula: `SUM(E2:E${cRow-1})` };
     cTotalRow.getCell('balance').value = { formula: `SUM(F2:F${cRow-1})` };
   }
-  cTotalRow.getCell('budget').numFmt = '"Rs." #,##0.00';
-  cTotalRow.getCell('paid').numFmt = '"Rs." #,##0.00';
-  cTotalRow.getCell('balance').numFmt = '"Rs." #,##0.00';
+  setCurrency(cTotalRow.getCell('budget'));
+  setCurrency(cTotalRow.getCell('paid'));
+  setCurrency(cTotalRow.getCell('balance'));
 
 
-  // ----- Sheet 5: Contractor Payments -----
-  const wsCPayments = workbook.addWorksheet('Contractor Payments');
+  // ----- 6. Contractor Payments -----
+  const wsCPayments = workbook.addWorksheet('6. Contractor Payments');
   styleHeader(wsCPayments, [
-    { label: 'Date', key: 'date', width: 15 },
+    { label: 'Payment Date', key: 'date', width: 18 },
     { label: 'Contractor Name', key: 'name', width: 25 },
+    { label: 'Trade', key: 'trade', width: 20 },
     { label: 'Amount Paid', key: 'amount', width: 20 },
-    { label: 'Notes', key: 'notes', width: 35 },
-  ]);
+    { label: 'Notes', key: 'notes', width: 40 },
+  ], 'FF9333EA'); // Lighter purple
   
   let cpRow = 2;
   const sortedCPayments = [...(contractorPayments||[])].sort((a,b) => new Date(a.payment_date) - new Date(b.payment_date));
@@ -241,24 +307,25 @@ export async function exportAllDataToExcel(projectId, projectName) {
     const row = wsCPayments.addRow({
       date: new Date(cp.payment_date).toLocaleDateString(),
       name: contractor ? contractor.name : 'Unknown',
+      trade: contractor ? contractor.trade : 'Unknown',
       amount: parseFloat(cp.amount_paid || 0),
       notes: cp.notes || ''
     });
-    row.getCell('amount').numFmt = '"Rs." #,##0.00';
+    setCurrency(row.getCell('amount'));
     cpRow++;
   }
   
-  const cpTotalRow = wsCPayments.addRow({ name: 'TOTAL' });
+  const cpTotalRow = wsCPayments.addRow({ trade: 'TOTAL OUTGOING' });
   cpTotalRow.font = { bold: true };
   if (cpRow > 2) {
-    cpTotalRow.getCell('amount').value = { formula: `SUM(C2:C${cpRow-1})` };
+    cpTotalRow.getCell('amount').value = { formula: `SUM(D2:D${cpRow-1})` };
   }
-  cpTotalRow.getCell('amount').numFmt = '"Rs." #,##0.00';
+  setCurrency(cpTotalRow.getCell('amount'));
 
   // ----- Finalize & Download -----
   const buffer = await workbook.xlsx.writeBuffer();
   const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
   
   const cleanProjectName = (projectName || 'Project').replace(/[^a-z0-9]/gi, '_');
-  saveAs(blob, `${cleanProjectName}_Export_${new Date().toISOString().split('T')[0]}.xlsx`);
+  saveAs(blob, `${cleanProjectName}_Master_Export_${new Date().toISOString().split('T')[0]}.xlsx`);
 }
