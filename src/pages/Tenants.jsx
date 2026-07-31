@@ -401,12 +401,14 @@ export default function Tenants() {
 
                 return sortedTenants.map(tenant => (
                   <tr key={tenant.id}>
-                    <td 
-                      style={{ fontWeight: 500, color: 'var(--color-primary)', cursor: 'pointer', textDecoration: 'underline dashed' }} 
-                      onClick={() => { setSelectedTenantProfile(tenant); setIsProfileModalOpen(true); }}
-                      title="Click to view full profile"
-                    >
-                      {tenant.name}
+                    <td>
+                      <span 
+                        className="action-link"
+                        onClick={() => { setSelectedTenantProfile(tenant); setIsProfileModalOpen(true); }}
+                        title="Click to view full profile"
+                      >
+                        {tenant.name}
+                      </span>
                     </td>
                     <td>{tenant.cnic}</td>
                     <td>{tenant.mobile}</td>
