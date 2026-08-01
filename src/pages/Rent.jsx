@@ -225,8 +225,8 @@ export default function Rent({ currentUser }) {
                 <input type="number" name="amount_paid" className="form-control" required min="1" step="0.01" max={selectedSale.balance} defaultValue={selectedSale.balance} />
               </div>
               <div className="form-group">
-                <label className="form-label">Receipt / Reference No.</label>
-                <input type="text" name="receipt_no" className="form-control" defaultValue={generateReceiptNo()} />
+                <label className="form-label">Receipt / Reference No. (System Generated)</label>
+                <input type="text" name="receipt_no" className="form-control" defaultValue={generateReceiptNo()} readOnly style={{ backgroundColor: 'var(--color-bg-app)', cursor: 'not-allowed', color: 'var(--color-text-muted)' }} />
               </div>
               <div className="form-group">
                 <label className="form-label">Notes (Optional)</label>

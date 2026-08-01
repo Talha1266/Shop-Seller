@@ -337,8 +337,8 @@ export default function Payments({ currentUser }) {
                 </select>
               </div>
               <div className="form-group">
-                <label className="form-label">Receipt Number (Optional)</label>
-                <input type="text" name="receiptNo" className="form-control" defaultValue={generateReceiptNo()} />
+                <label className="form-label">Receipt Number (System Generated)</label>
+                <input type="text" name="receiptNo" className="form-control" defaultValue={generateReceiptNo()} readOnly style={{ backgroundColor: 'var(--color-bg-app)', cursor: 'not-allowed', color: 'var(--color-text-muted)' }} />
               </div>
               <div className="form-group">
                 <label className="form-label">Payment Date</label>
