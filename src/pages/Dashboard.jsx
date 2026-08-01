@@ -127,6 +127,37 @@ export default function Dashboard() {
     .sort((a, b) => b.balance - a.balance)
     .slice(0, 5);
 
+  // Top Rent Defaulters
+  const topRentDefaulters = tenants.map(tenant => {
+    const tenantSales = activeSales.filter(s => s.tenantId === tenant.id);
+    if (tenantSales.length === 0) return null;
+    
+    let totalRentDue = 0;
+    let totalRentPaid = 0;
+    const defaultingShops = [];
+    
+    tenantSales.forEach(sale => {
+      const shop = shops.find(s => s.id === sale.shopId);
+      const rentDue = parseFloat(sale.monthly_rent || shop?.monthly_rent || 0);
+      if (rentDue > 0) {
+        totalRentDue += rentDue;
+        const monthPayments = rentCollections.filter(rc => rc.sale_id === sale.id && rc.month === currentMonthString);
+        const amountPaid = monthPayments.reduce((sum, rc) => sum + parseFloat(rc.amount_paid || 0), 0);
+        totalRentPaid += amountPaid;
+        
+        if (rentDue - amountPaid > 0) {
+          defaultingShops.push(shop);
+        }
+      }
+    });
+    
+    const balance = totalRentDue - totalRentPaid;
+    
+    return { tenant, defaultingShops, totalRentDue, totalRentPaid, balance };
+  }).filter(Boolean).filter(item => item.balance > 0)
+    .sort((a, b) => b.balance - a.balance)
+    .slice(0, 5);
+
   return (
     <div>
       <div className="page-header">
@@ -292,6 +323,45 @@ export default function Dashboard() {
           </div>
         ) : (
           <p style={{ color: 'var(--color-text-muted)' }}>There are no outstanding balances.</p>
+        )}
+      </div>
+
+      {/* Top Rent Defaulters Widget */}
+      <div className="card" style={{ marginTop: '2rem' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1.5rem' }}>
+          <Bell size={20} color="#ef4444" />
+          <h2 style={{ fontSize: '1.125rem', fontWeight: 600, margin: 0 }}>Top Rent Defaulters (This Month)</h2>
+        </div>
+        
+        {topRentDefaulters.length > 0 ? (
+          <div className="table-container">
+            <table className="table">
+              <thead>
+                <tr>
+                  <th>Tenant</th>
+                  <th>Shop Number</th>
+                  <th>Rent Due</th>
+                  <th>Rent Paid</th>
+                  <th>Unpaid Rent</th>
+                </tr>
+              </thead>
+              <tbody>
+                {topRentDefaulters.map(item => {
+                  return (
+                    <tr key={item.tenant.id}>
+                      <td style={{ fontWeight: 500 }}>{item.tenant.name}</td>
+                      <td>{item.defaultingShops.length > 0 ? item.defaultingShops.map(s => `Shop ${s.shopNumber} (Block ${s.block})`).join(', ') : 'N/A'}</td>
+                      <td>Rs. {item.totalRentDue.toLocaleString()}</td>
+                      <td style={{ color: '#10b981' }}>Rs. {item.totalRentPaid.toLocaleString()}</td>
+                      <td style={{ fontWeight: 600, color: '#b91c1c' }}>Rs. {item.balance.toLocaleString()}</td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <p style={{ color: 'var(--color-text-muted)' }}>There are no rent defaulters for this month.</p>
         )}
       </div>
     </div>
