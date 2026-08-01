@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { LayoutDashboard, Store, Users, Receipt, CreditCard, FileText, ShieldAlert, LogOut, Menu, X, PieChart, Plus, Folder, HardHat } from 'lucide-react';
+import { LayoutDashboard, Store, Users, Receipt, CreditCard, FileText, ShieldAlert, LogOut, Menu, X, PieChart, Plus, Folder, HardHat, Key } from 'lucide-react';
 import { useProject } from '../contexts/ProjectContext';
 
 export default function Layout({ children, currentUser, onLogout }) {
@@ -19,6 +19,7 @@ export default function Layout({ children, currentUser, onLogout }) {
     { path: '/tenants', label: 'Tenants', icon: Users },
     { path: '/ledger', label: 'Ledgers', icon: FileText },
     { path: '/sales', label: 'Sales & Allocations', icon: Receipt },
+    { path: '/rent', label: 'Rent & Maintenance', icon: Key },
     { path: '/payments', label: 'Payments', icon: CreditCard },
     { path: '/contractor', label: 'Contractors', icon: HardHat },
     { path: '/summary', label: 'Summary', icon: PieChart },

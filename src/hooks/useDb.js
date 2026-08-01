@@ -83,7 +83,8 @@ export function useDb() {
       installments: createTableProxy('installments'),
       documents: createTableProxy('documents'),
       contractor_payments: createTableProxy('contractor_payments'),
-      contractor_documents: createTableProxy('contractor_documents')
+      contractor_documents: createTableProxy('contractor_documents'),
+      rent_collections: createTableProxy('rent_collections')
     };
   }, [activeProject]);
 
