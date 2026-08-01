@@ -107,6 +107,10 @@ export default function Payments({ currentUser }) {
     }, 100);
   };
 
+  const generateReceiptNo = () => {
+    return 'REC-' + Math.floor(100000 + Math.random() * 900000).toString();
+  };
+
   const handleAddPayment = async (e) => {
     e.preventDefault();
     const formData = new FormData(e.target);
@@ -115,7 +119,7 @@ export default function Payments({ currentUser }) {
       tenantId: tenantId,
       date: formData.get('date'),
       amount: parseFloat(formData.get('amount')),
-      receiptNo: formData.get('receiptNo') || 'XXXX'
+      receiptNo: formData.get('receiptNo') || generateReceiptNo()
     };
     
     await db.payments.add(newPayment);
@@ -333,8 +337,8 @@ export default function Payments({ currentUser }) {
                 </select>
               </div>
               <div className="form-group">
-                <label className="form-label">Receipt No.</label>
-                <input type="text" name="receiptNo" className="form-control" placeholder="Leave empty to default to XXXX" />
+                <label className="form-label">Receipt Number (Optional)</label>
+                <input type="text" name="receiptNo" className="form-control" defaultValue={generateReceiptNo()} />
               </div>
               <div className="form-group">
                 <label className="form-label">Payment Date</label>
