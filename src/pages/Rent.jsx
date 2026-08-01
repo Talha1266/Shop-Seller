@@ -45,7 +45,11 @@ export default function Rent({ currentUser }) {
 
   // Only consider active sales with a monthly rent > 0
   const activeRentSales = useMemo(() => {
-    let filtered = sales.filter(s => parseFloat(s.monthly_rent || 0) > 0);
+    let filtered = sales.filter(s => {
+      const shop = shops.find(sh => sh.id === s.shopId);
+      const rentDue = parseFloat(s.monthly_rent || shop?.monthly_rent || 0);
+      return rentDue > 0;
+    });
     
     if (searchQuery) {
       const q = searchQuery.toLowerCase();
@@ -57,7 +61,8 @@ export default function Rent({ currentUser }) {
     }
 
     return filtered.map(sale => {
-      const rentDue = parseFloat(sale.monthly_rent || 0);
+      const shop = shops.find(sh => sh.id === sale.shopId);
+      const rentDue = parseFloat(sale.monthly_rent || shop?.monthly_rent || 0);
       
       // Calculate amount paid for this specific month
       const monthPayments = rentCollections.filter(rc => rc.sale_id === sale.id && rc.month === selectedMonthString);

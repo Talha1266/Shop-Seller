@@ -147,6 +147,7 @@ export default function Shops({ currentUser }) {
     const block = formData.get('block');
     const floor = formData.get('floor');
     const price = parseFloat(formData.get('price'));
+    const monthly_rent = parseFloat(formData.get('monthly_rent') || 0);
 
     if (!block || !floor) {
       alert('Please select a Block and a Floor.');
@@ -182,6 +183,7 @@ export default function Shops({ currentUser }) {
             block: block,
             floor: floor,
             price: price,
+            monthly_rent: monthly_rent,
             status: 'Available',
             side: side
           });
@@ -210,6 +212,7 @@ export default function Shops({ currentUser }) {
           block,
           floor,
           price,
+          monthly_rent,
           status: 'Available',
           side
         };
@@ -317,36 +320,40 @@ export default function Shops({ currentUser }) {
     const oldPrice = shop.status === 'Occupied'
       ? (sales.find(s => s.shopId === shop.id)?.totalAmount ?? shop.price)
       : shop.price;
-    setPriceModal({ shop, oldPrice, newValue: String(oldPrice) });
+    const oldRent = shop.status === 'Occupied'
+      ? (sales.find(s => s.shopId === shop.id)?.monthly_rent ?? shop.monthly_rent ?? 0)
+      : (shop.monthly_rent ?? 0);
+    setPriceModal({ shop, oldPrice, newValue: String(oldPrice), oldRent, newRent: String(oldRent) });
   };
 
   const handleSavePrice = async () => {
     if (!priceModal) return;
-    const { shop, oldPrice } = priceModal;
+    const { shop, oldPrice, oldRent } = priceModal;
     const newPrice = parseFloat(priceModal.newValue);
+    const newRent = parseFloat(priceModal.newRent || 0);
 
     if (isNaN(newPrice) || newPrice < 0) {
       alert('Please enter a valid price.');
       return;
     }
-    if (newPrice === parseFloat(oldPrice)) {
+    if (newPrice === parseFloat(oldPrice) && newRent === parseFloat(oldRent)) {
       setPriceModal(null);
       return;
     }
 
     const warningMsg = shop.status === 'Occupied'
-      ? `⚠️ WARNING\n\nYou are changing the total sale amount for Shop ${shop.shopNumber}:\n\n  Old amount: Rs. ${Number(oldPrice).toLocaleString()}\n  New amount: Rs. ${newPrice.toLocaleString()}\n\nThis will recalculate the tenant's outstanding balance.\n\nAre you sure?`
-      : `⚠️ WARNING\n\nYou are changing the listed price for Shop ${shop.shopNumber}:\n\n  Old price: Rs. ${Number(oldPrice).toLocaleString()}\n  New price: Rs. ${newPrice.toLocaleString()}\n\nAre you sure?`;
+      ? `⚠️ WARNING\n\nYou are changing the details for Shop ${shop.shopNumber}:\n\n  Old Sale Amount: Rs. ${Number(oldPrice).toLocaleString()}\n  New Sale Amount: Rs. ${newPrice.toLocaleString()}\n\n  Old Rent: Rs. ${Number(oldRent).toLocaleString()}\n  New Rent: Rs. ${newRent.toLocaleString()}\n\nAre you sure?`
+      : `⚠️ WARNING\n\nYou are changing the details for Shop ${shop.shopNumber}:\n\n  Old Price: Rs. ${Number(oldPrice).toLocaleString()}\n  New Price: Rs. ${newPrice.toLocaleString()}\n\n  Old Rent: Rs. ${Number(oldRent).toLocaleString()}\n  New Rent: Rs. ${newRent.toLocaleString()}\n\nAre you sure?`;
 
     const confirmed = window.confirm(warningMsg);
     if (!confirmed) return;
 
     try {
-      await db.shops.update(shop.id, { price: newPrice });
+      await db.shops.update(shop.id, { price: newPrice, monthly_rent: newRent });
       if (shop.status === 'Occupied') {
         const shopSale = sales.find(s => s.shopId === shop.id);
         if (shopSale) {
-          await supabase.from('sales').update({ totalAmount: newPrice }).eq('id', shopSale.id);
+          await supabase.from('sales').update({ totalAmount: newPrice, monthly_rent: newRent }).eq('id', shopSale.id);
         }
       }
       setPriceModal(null);
@@ -586,6 +593,9 @@ export default function Shops({ currentUser }) {
                                             <p style={{ margin: 0, fontSize: '0.875rem', color: balance > 0 ? '#ef4444' : 'var(--color-success)', fontWeight: 600 }}>
                                               Bal: Rs. {balance.toLocaleString()}
                                             </p>
+                                            <p style={{ margin: 0, fontSize: '0.75rem', color: 'var(--color-text-muted)', fontWeight: 500 }}>
+                                              Rent: Rs. {Number(sales.find(s => s.shopId === shop.id)?.monthly_rent || shop.monthly_rent || 0).toLocaleString()}
+                                            </p>
                                           </>
                                         ) : (
                                           isUnlocked ? (
@@ -601,6 +611,11 @@ export default function Shops({ currentUser }) {
                                               Price: Rs. {shop.price.toLocaleString()}
                                             </p>
                                           )
+                                        )}
+                                        {shop.status === 'Available' && (
+                                          <p style={{ margin: 0, fontSize: '0.75rem', color: 'var(--color-text-muted)', fontWeight: 500 }}>
+                                            Rent: Rs. {Number(shop.monthly_rent || 0).toLocaleString()}
+                                          </p>
                                         )}
                                       </div>
                                       {isUnlocked && (
@@ -720,6 +735,10 @@ export default function Shops({ currentUser }) {
                 <input type="number" name="price" className="form-control" required min="0" step="0.01" />
               </div>
               <div className="form-group">
+                <label className="form-label">Default Monthly Rent</label>
+                <input type="number" name="monthly_rent" className="form-control" min="0" step="0.01" defaultValue="0" />
+              </div>
+              <div className="form-group">
                 <label className="form-label">Shop Side</label>
                 <div style={{ display: 'flex', gap: '1.5rem', marginTop: '0.5rem' }}>
                   <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', fontWeight: 500 }}>
@@ -771,6 +790,19 @@ export default function Shops({ currentUser }) {
                   step="0.01"
                   value={priceModal.newValue}
                   onChange={e => setPriceModal(prev => ({ ...prev, newValue: e.target.value }))}
+                  onKeyDown={e => { if (e.key === 'Enter') handleSavePrice(); if (e.key === 'Escape') setPriceModal(null); }}
+                />
+              </div>
+
+              <div className="form-group" style={{ marginBottom: '0.5rem' }}>
+                <label className="form-label">New Monthly Rent (Rs.)</label>
+                <input
+                  type="number"
+                  className="form-control"
+                  min="0"
+                  step="0.01"
+                  value={priceModal.newRent}
+                  onChange={e => setPriceModal(prev => ({ ...prev, newRent: e.target.value }))}
                   onKeyDown={e => { if (e.key === 'Enter') handleSavePrice(); if (e.key === 'Escape') setPriceModal(null); }}
                 />
               </div>
