@@ -18,6 +18,7 @@ export default function Dashboard() {
   const payments = useSupabase('payments') || [];
   const contractorPayments = useSupabase('contractor_payments') || [];
   const tenants = useSupabase('tenants') || [];
+  const rentCollections = useSupabase('rent_collections') || [];
 
   const occupiedShopIds = new Set(shops.filter(s => s.status === 'Occupied').map(s => s.id));
 
@@ -53,11 +54,24 @@ export default function Dashboard() {
   const totalContractorPaid = contractorPayments.reduce((sum, p) => sum + parseFloat(p.amount || 0), 0);
   const contractorPending = maxPotentialRevenue - totalContractorPaid;
 
+  const currentMonthString = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`;
+  
+  const expectedRent = activeSales.reduce((sum, sale) => {
+    const shop = shops.find(s => s.id === sale.shopId);
+    return sum + parseFloat(sale.monthly_rent || shop?.monthly_rent || 0);
+  }, 0);
+
+  const collectedRentThisMonth = rentCollections
+    .filter(rc => rc.month === currentMonthString)
+    .reduce((sum, rc) => sum + parseFloat(rc.amount_paid || 0), 0);
+
   const stats = [
     { label: 'Total Shops', value: shopsCount, icon: Store, color: '#2563eb', bg: '#eff6ff', link: '/shops' },
     { label: 'Shops Occupied', value: shopsSold, icon: ShoppingCart, color: '#10b981', bg: '#d1fae5', link: '/shops' },
     { label: 'Expected Revenue', value: `Rs. ${totalRevenueExpected.toLocaleString()}`, icon: DollarSign, color: '#f59e0b', bg: '#fef3c7' },
     { label: 'Total Received', value: `Rs. ${totalReceived.toLocaleString()}`, icon: Wallet, color: '#8b5cf6', bg: '#ede9fe' },
+    { label: 'Expected Rent (Monthly)', value: `Rs. ${expectedRent.toLocaleString()}`, icon: DollarSign, color: '#0ea5e9', bg: '#e0f2fe', link: '/rent' },
+    { label: 'Rent Collected (This Month)', value: `Rs. ${collectedRentThisMonth.toLocaleString()}`, icon: Wallet, color: '#0ea5e9', bg: '#e0f2fe', link: '/rent' },
     { label: 'Tenant Outstanding', value: `Rs. ${tenantOutstanding.toLocaleString()}`, icon: AlertCircle, color: '#ef4444', bg: '#fee2e2' },
     { label: 'Total Value (Max Rev)', value: `Rs. ${maxPotentialRevenue.toLocaleString()}`, icon: DollarSign, color: '#ec4899', bg: '#fce7f3' },
     { label: 'Contractor Paid', value: `Rs. ${totalContractorPaid.toLocaleString()}`, icon: HardHat, color: '#10b981', bg: '#d1fae5', link: '/contractor' },
