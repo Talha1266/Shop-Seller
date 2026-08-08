@@ -43,7 +43,6 @@ const LedgerPrint = ({ tenant, tenantSales, tenantShops, payments, totalAmount, 
             <p style={{ margin: '5px 0' }}><strong>Project:</strong> City Shopping Center Sargodha-Khushab Road</p>
             <p style={{ margin: '5px 0' }}><strong>Shops:</strong> {tenantShops.map(s => `Shop ${s.shopNumber} (Block ${s.block}, Floor ${s.floor})`).join(', ')}</p>
             <p style={{ margin: '5px 0' }}><strong>Total Amount:</strong> Rs. {totalAmount.toLocaleString()}</p>
-            <p style={{ margin: '5px 0' }}><strong>Advance Paid:</strong> Rs. {tenantSales.reduce((s, sale) => s + sale.advancePayment, 0).toLocaleString()}</p>
             <p style={{ margin: '5px 0' }}><strong>Agreed Rent:</strong> Rs. {totalAgreedRent.toLocaleString()} / month</p>
           </div>
         </div>
