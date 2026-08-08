@@ -9,6 +9,11 @@ import { useReactToPrint } from 'react-to-print';
 const LedgerPrint = ({ tenant, tenantSales, tenantShops, payments, totalAmount, totalPaid, balance, innerRef }) => {
   if (!tenant || tenantSales.length === 0) return <div ref={innerRef}></div>;
 
+  const totalAgreedRent = tenantSales.reduce((sum, sale) => {
+    const shop = tenantShops.find(s => s.id === sale.shopId);
+    return sum + parseFloat(sale.monthly_rent || shop?.monthly_rent || 0);
+  }, 0);
+
   return (
     <div ref={innerRef} style={{ padding: '40px', fontFamily: 'system-ui, sans-serif', display: 'none' }} className="print-ledger-wrapper">
       <style type="text/css" media="print">
@@ -39,6 +44,7 @@ const LedgerPrint = ({ tenant, tenantSales, tenantShops, payments, totalAmount, 
             <p style={{ margin: '5px 0' }}><strong>Shops:</strong> {tenantShops.map(s => `Shop ${s.shopNumber} (Block ${s.block}, Floor ${s.floor})`).join(', ')}</p>
             <p style={{ margin: '5px 0' }}><strong>Total Amount:</strong> Rs. {totalAmount.toLocaleString()}</p>
             <p style={{ margin: '5px 0' }}><strong>Advance Paid:</strong> Rs. {tenantSales.reduce((s, sale) => s + sale.advancePayment, 0).toLocaleString()}</p>
+            <p style={{ margin: '5px 0' }}><strong>Agreed Rent:</strong> Rs. {totalAgreedRent.toLocaleString()} / month</p>
           </div>
         </div>
 
