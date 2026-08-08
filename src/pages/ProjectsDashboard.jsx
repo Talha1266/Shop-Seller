@@ -56,21 +56,27 @@ export default function ProjectsDashboard() {
 
   const handleDeleteProject = async (e, projectId, projectName) => {
     e.stopPropagation();
-    if (!window.confirm(`Are you sure you want to delete ${projectName}? This action cannot be undone.`)) return;
+    const code = window.prompt(`SAFETY LOCK ACTIVE\n\nTo delete project "${projectName}", type 'CONFIRM':`);
+    if (code !== 'CONFIRM') {
+      if (code !== null) alert("Invalid confirmation code.");
+      return;
+    }
     
     try {
       await deleteProject(projectId);
     } catch (err) {
       console.error(err);
       if (err.code === '23503') { // Foreign key constraint error
-        const force = window.confirm(`WARNING: ${projectName} contains active shops, tenants, or financial records!\n\nIf you proceed, ALL data inside this project will be permanently destroyed. Are you absolutely sure you want to force delete it?`);
-        if (force) {
+        const forceCode = window.prompt(`CRITICAL WARNING: ${projectName} contains active shops, tenants, or financial records!\n\nIf you proceed, ALL data inside this project will be permanently destroyed.\n\nType '${projectName}' exactly to force delete:`);
+        if (forceCode === projectName) {
           try {
             await forceDeleteProject(projectId);
           } catch (forceErr) {
             console.error(forceErr);
             alert("Failed to force delete project. Error: " + forceErr.message);
           }
+        } else if (forceCode !== null) {
+           alert("Project name did not match. Deletion cancelled.");
         }
       } else {
         alert("Failed to delete project. Error: " + err.message);
