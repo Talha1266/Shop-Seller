@@ -214,16 +214,7 @@ export default function Ledger({ currentUser }) {
     }
   };
   
-  const handleEditReceipt = async (payment) => {
-    const newReceipt = window.prompt("Enter new receipt number:", payment.receiptNo);
-    if (newReceipt !== null && newReceipt.trim() !== "" && newReceipt !== payment.receiptNo) {
-      try {
-        await db.payments.update(payment.id, { receiptNo: newReceipt.trim() });
-      } catch (err) {
-        alert("Failed to update receipt number: " + err.message);
-      }
-    }
-  };
+
   
 
     
@@ -402,11 +393,7 @@ export default function Ledger({ currentUser }) {
                     return (
                       <tr key={pmt.id || idx}>
                         <td>{new Date(pmt.date).toLocaleDateString()}</td>
-                        <td 
-                          style={{ cursor: 'pointer', textDecoration: 'underline dashed', color: 'var(--color-primary)', fontWeight: 500 }} 
-                          onClick={() => handleEditReceipt(pmt)}
-                          title="Click to edit receipt number"
-                        >
+                        <td style={{ fontWeight: 500 }}>
                           {pmt.receiptNo || 'Payment'}
                         </td>
                         <td style={{ fontWeight: 500 }}>{shop ? `Shop ${shop.shopNumber} (Block ${shop.block}, Floor ${shop.floor})` : tenantShops.map(s => `Shop ${s.shopNumber} (Block ${s.block}, Floor ${s.floor})`).join(', ') || 'General Portfolio Payment'}</td>
