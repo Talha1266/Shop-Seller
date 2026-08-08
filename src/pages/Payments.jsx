@@ -126,18 +126,6 @@ export default function Payments({ currentUser }) {
     setIsModalOpen(false);
   };
 
-  const handleEditReceipt = async (payment) => {
-    if (!isUnlocked) return;
-    const newReceipt = window.prompt("Enter new receipt number:", payment.receiptNo);
-    if (newReceipt !== null && newReceipt.trim() !== "" && newReceipt !== payment.receiptNo) {
-      try {
-        await db.payments.update(payment.id, { receiptNo: newReceipt.trim() });
-      } catch (err) {
-        alert("Failed to update receipt number: " + err.message);
-      }
-    }
-  };
-
   const handleEditPaymentSubmit = async (e) => {
     e.preventDefault();
     const formData = new FormData(e.target);
@@ -282,11 +270,7 @@ export default function Payments({ currentUser }) {
                   const details = getPaymentDetails(payment);
                   return (
                     <tr key={payment.id}>
-                      <td 
-                        style={{ fontWeight: 500, color: (isUnlocked && !payment.isAdvance) ? 'var(--color-primary)' : 'var(--color-text)', cursor: (isUnlocked && !payment.isAdvance) ? 'pointer' : 'default', textDecoration: (isUnlocked && !payment.isAdvance) ? 'underline dashed' : 'none' }} 
-                        onClick={() => { if (!payment.isAdvance) handleEditReceipt(payment); }}
-                        title={(isUnlocked && !payment.isAdvance) ? "Click to edit receipt number" : ""}
-                      >
+                      <td style={{ fontWeight: 500 }}>
                         {payment.receiptNo}
                         {payment.isAdvance && <span style={{ marginLeft: '8px', fontSize: '0.65rem', backgroundColor: '#eef2ff', color: '#4f46e5', padding: '2px 6px', borderRadius: '12px' }}>Registration</span>}
                       </td>
