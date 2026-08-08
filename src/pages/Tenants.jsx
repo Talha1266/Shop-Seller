@@ -15,6 +15,11 @@ const TenantProfilePrint = ({ tenant, tenantSales, tenantShops, payments, innerR
   const totalPaid = payments.reduce((sum, p) => sum + p.amount, 0) + totalAdvance;
   const balance = totalAmount - totalPaid;
 
+  const totalAgreedRent = tenantSales.reduce((sum, sale) => {
+    const shop = tenantShops.find(s => s.id === sale.shopId);
+    return sum + parseFloat(sale.monthly_rent || shop?.monthly_rent || 0);
+  }, 0);
+
   return (
     <div ref={innerRef} style={{ padding: '40px', fontFamily: 'system-ui, sans-serif', display: 'none' }} className="print-profile-wrapper">
       <style type="text/css" media="print">
@@ -50,6 +55,7 @@ const TenantProfilePrint = ({ tenant, tenantSales, tenantShops, payments, innerR
           <p style={{ margin: '5px 0' }}><strong>Total Agreed Amount:</strong> Rs. {totalAmount.toLocaleString()}</p>
           <p style={{ margin: '5px 0' }}><strong>Total Paid (incl. Advance):</strong> Rs. {totalPaid.toLocaleString()}</p>
           <p style={{ margin: '5px 0' }}><strong>Remaining Balance:</strong> Rs. {balance.toLocaleString()}</p>
+          <p style={{ margin: '5px 0' }}><strong>Agreed Rent:</strong> Rs. {totalAgreedRent.toLocaleString()} / month</p>
         </div>
       </div>
     </div>
