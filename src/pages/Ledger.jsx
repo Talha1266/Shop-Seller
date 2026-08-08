@@ -161,6 +161,10 @@ export default function Ledger({ currentUser }) {
 
   const saleIds = tenantSales.map(s => s.id);
   
+  const generateReceiptNo = () => {
+    return 'REC-' + Math.floor(100000 + Math.random() * 900000).toString();
+  };
+
   const handleAddPayment = async (e) => {
     e.preventDefault();
     if (!tenant) return;
@@ -169,7 +173,7 @@ export default function Ledger({ currentUser }) {
       tenantId: tenant.id,
       date: formData.get('date'),
       amount: parseFloat(formData.get('amount')),
-      receiptNo: formData.get('receiptNo') || 'XXXX'
+      receiptNo: formData.get('receiptNo') || generateReceiptNo()
     };
     
     await db.payments.add(newPayment);
@@ -453,8 +457,8 @@ export default function Ledger({ currentUser }) {
                 <input type="text" className="form-control" readOnly value={tenant.name} />
               </div>
               <div className="form-group">
-                <label className="form-label">Receipt No.</label>
-                <input type="text" name="receiptNo" className="form-control" placeholder="Leave empty to default to XXXX" />
+                <label className="form-label">Receipt Number (System Generated)</label>
+                <input type="text" name="receiptNo" className="form-control" defaultValue={generateReceiptNo()} readOnly style={{ backgroundColor: 'var(--color-bg-app)', cursor: 'not-allowed', color: 'var(--color-text-muted)' }} />
               </div>
               <div className="form-group">
                 <label className="form-label">Payment Date</label>
