@@ -5,8 +5,9 @@ import { useDb } from '../hooks/useDb';
 import { supabase } from '../supabaseClient';
 import { Printer, FileText, Plus, X, Edit, Lock, Unlock, User } from 'lucide-react';
 import { useReactToPrint } from 'react-to-print';
+import { useProject } from '../contexts/ProjectContext';
 
-const LedgerPrint = ({ tenant, tenantSales, tenantShops, payments, totalAmount, totalPaid, balance, innerRef }) => {
+const LedgerPrint = ({ tenant, tenantSales, tenantShops, payments, totalAmount, totalPaid, balance, innerRef, projectName }) => {
   if (!tenant || tenantSales.length === 0) return <div ref={innerRef}></div>;
 
   const totalAgreedRent = tenantSales.reduce((sum, sale) => {
@@ -40,7 +41,7 @@ const LedgerPrint = ({ tenant, tenantSales, tenantShops, payments, totalAmount, 
           </div>
           <div style={{ padding: '15px', backgroundColor: '#f9f9f9', border: '1px solid #ddd' }}>
             <h3 style={{ marginTop: 0, borderBottom: '1px solid #ccc', paddingBottom: '10px' }}>Portfolio Summary</h3>
-            <p style={{ margin: '5px 0' }}><strong>Project:</strong> City Shopping Center Sargodha-Khushab Road</p>
+            <p style={{ margin: '5px 0' }}><strong>Project:</strong> {projectName || 'Unknown Project'}</p>
             <p style={{ margin: '5px 0' }}><strong>Shops:</strong> {tenantShops.map(s => `Shop ${s.shopNumber} (Block ${s.block}, Floor ${s.floor})`).join(', ')}</p>
             <p style={{ margin: '5px 0' }}><strong>Total Amount:</strong> Rs. {totalAmount.toLocaleString()}</p>
             <p style={{ margin: '5px 0' }}><strong>Agreed Rent:</strong> Rs. {totalAgreedRent.toLocaleString()} / month</p>
@@ -105,6 +106,7 @@ const LedgerPrint = ({ tenant, tenantSales, tenantShops, payments, totalAmount, 
 
 export default function Ledger({ currentUser }) {
   const db = useDb();
+  const { activeProject } = useProject();
   const location = useLocation();
   const navigate = useNavigate();
   const [searchMode, setSearchMode] = useState('tenant'); // 'tenant' or 'shop'
@@ -229,6 +231,7 @@ export default function Ledger({ currentUser }) {
     <div>
       <LedgerPrint 
         innerRef={printRef}
+        projectName={activeProject?.name}
         tenant={tenant}
         tenantSales={tenantSales}
         tenantShops={tenantShops}
