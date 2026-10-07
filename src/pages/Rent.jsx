@@ -1,7 +1,7 @@
 import { useState, useMemo, useRef, useEffect } from 'react';
 import { useSupabase } from '../hooks/useSupabase';
 import { useDb } from '../hooks/useDb';
-import { Plus, X, Search, DollarSign, Printer } from 'lucide-react';
+import { Plus, X, Search, DollarSign, Printer, Trash2 } from 'lucide-react';
 import { useReactToPrint } from 'react-to-print';
 import { useProject } from '../contexts/ProjectContext';
 const RentReceiptPrint = ({ printData, innerRef, projectName }) => {
@@ -80,6 +80,9 @@ export default function Rent({ currentUser }) {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedSale, setSelectedSale] = useState(null);
   const [paymentDate, setPaymentDate] = useState(new Date().toISOString().split('T')[0]);
+  
+  const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
+  const [selectedHistorySale, setSelectedHistorySale] = useState(null);
 
   const { activeProject } = useProject();
   const printRef = useRef(null);
@@ -241,6 +244,15 @@ export default function Rent({ currentUser }) {
     }
   };
 
+  const handleDeletePayment = async (paymentId) => {
+    if (!window.confirm('Are you sure you want to delete this payment? This action cannot be undone.')) return;
+    try {
+      await db.rent_collections.delete(paymentId);
+    } catch (err) {
+      alert("Error deleting payment: " + err.message);
+    }
+  };
+
   const generateReceiptNo = () => {
     return 'REC-' + Math.floor(100000 + Math.random() * 900000).toString();
   };
@@ -314,14 +326,25 @@ export default function Rent({ currentUser }) {
                       </span>
                     </td>
                     <td style={{ textAlign: 'right' }}>
-                      <button 
-                        className="btn btn-primary"
-                        style={{ padding: '0.25rem 0.5rem', fontSize: '0.875rem' }}
-                        onClick={() => { setSelectedSale(sale); setPaymentDate(new Date().toISOString().split('T')[0]); setIsModalOpen(true); }}
-                        disabled={sale.status === 'Paid'}
-                      >
-                        <DollarSign size={14} /> Receive
-                      </button>
+                      <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end' }}>
+                        {sale.amountPaid > 0 && (
+                          <button 
+                            className="btn btn-secondary"
+                            style={{ padding: '0.25rem 0.5rem', fontSize: '0.875rem' }}
+                            onClick={() => { setSelectedHistorySale(sale); setIsHistoryModalOpen(true); }}
+                          >
+                            History
+                          </button>
+                        )}
+                        <button 
+                          className="btn btn-primary"
+                          style={{ padding: '0.25rem 0.5rem', fontSize: '0.875rem' }}
+                          onClick={() => { setSelectedSale(sale); setPaymentDate(new Date().toISOString().split('T')[0]); setIsModalOpen(true); }}
+                          disabled={sale.status === 'Paid'}
+                        >
+                          <DollarSign size={14} /> Receive
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))
@@ -384,6 +407,87 @@ export default function Rent({ currentUser }) {
                   <button type="submit" className="btn btn-primary">Save Payment & Print</button>
                 </div>
               </form>
+            </div>
+          </div>
+        );
+      })()}
+
+      {isHistoryModalOpen && selectedHistorySale && (() => {
+        const historyPayments = rentCollections.filter(rc => rc.sale_id === selectedHistorySale.id && rc.month === selectedMonthString);
+        return (
+          <div className="modal-overlay" onClick={() => { setIsHistoryModalOpen(false); setSelectedHistorySale(null); }}>
+            <div className="modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: '700px' }}>
+              <div className="modal-header">
+                <h2 className="modal-title">Payment History for {selectedMonthString}</h2>
+                <button className="modal-close" onClick={() => { setIsHistoryModalOpen(false); setSelectedHistorySale(null); }}><X size={24} /></button>
+              </div>
+              <div style={{ marginBottom: '1rem', padding: '0.75rem', backgroundColor: 'var(--color-bg-app)', borderRadius: '6px' }}>
+                <p style={{ margin: 0, fontSize: '0.875rem' }}><strong>Shop:</strong> {getShopDetails(selectedHistorySale.shopId)}</p>
+                <p style={{ margin: '0.25rem 0 0 0', fontSize: '0.875rem' }}><strong>Tenant:</strong> {getTenantDetails(selectedHistorySale.tenantId)}</p>
+              </div>
+              
+              <div className="table-container">
+                <table className="table">
+                  <thead>
+                    <tr>
+                      <th>Date</th>
+                      <th>Receipt No</th>
+                      <th>Base Rent</th>
+                      <th>Fine</th>
+                      <th>Total</th>
+                      <th style={{ textAlign: 'right' }}>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {historyPayments.map(pmt => {
+                      const totalAmt = parseFloat(pmt.amount_paid || 0) + parseFloat(pmt.fine_amount || 0);
+                      return (
+                        <tr key={pmt.id}>
+                          <td>{new Date(pmt.date).toLocaleDateString()}</td>
+                          <td>{pmt.receipt_no}</td>
+                          <td>Rs. {parseFloat(pmt.amount_paid || 0).toLocaleString()}</td>
+                          <td style={{ color: pmt.fine_amount > 0 ? '#ef4444' : 'inherit' }}>
+                            Rs. {parseFloat(pmt.fine_amount || 0).toLocaleString()}
+                          </td>
+                          <td style={{ fontWeight: 600 }}>Rs. {totalAmt.toLocaleString()}</td>
+                          <td style={{ textAlign: 'right' }}>
+                            <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end' }}>
+                              <button 
+                                className="icon-btn" 
+                                style={{ color: 'var(--color-primary)' }}
+                                title="Print Receipt"
+                                onClick={() => triggerPrint({
+                                  receipt_no: pmt.receipt_no,
+                                  date: pmt.date,
+                                  tenantName: getTenantDetails(selectedHistorySale.tenantId),
+                                  shopDetails: getShopDetails(selectedHistorySale.shopId),
+                                  month: selectedMonthString,
+                                  rentAmount: parseFloat(pmt.amount_paid || 0),
+                                  fineAmount: parseFloat(pmt.fine_amount || 0),
+                                  amount_paid: totalAmt
+                                })}
+                              >
+                                <Printer size={16} />
+                              </button>
+                              <button 
+                                className="icon-btn" 
+                                style={{ color: '#ef4444' }}
+                                title="Undo Payment"
+                                onClick={() => handleDeletePayment(pmt.id)}
+                              >
+                                <Trash2 size={16} />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                    {historyPayments.length === 0 && (
+                      <tr><td colSpan="6" style={{ textAlign: 'center', padding: '2rem' }}>No payments found for this month.</td></tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
             </div>
           </div>
         );
