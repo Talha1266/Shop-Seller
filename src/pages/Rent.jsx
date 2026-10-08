@@ -7,6 +7,7 @@ import { useProject } from '../contexts/ProjectContext';
 import { supabase } from '../supabaseClient';
 const RentReceiptPrint = ({ printData, innerRef, projectName, appSettings }) => {
   const [signatureUrl, setSignatureUrl] = useState('');
+  const [watermarkUrl, setWatermarkUrl] = useState('');
 
   useEffect(() => {
     if (appSettings?.auth_signature_url) {
@@ -17,19 +18,46 @@ const RentReceiptPrint = ({ printData, innerRef, projectName, appSettings }) => 
           if (data) setSignatureUrl(data.signedUrl);
         });
     }
-  }, [appSettings?.auth_signature_url]);
+    if (appSettings?.watermark_url) {
+      supabase.storage
+        .from('tenant-documents')
+        .createSignedUrl(appSettings.watermark_url, 3600)
+        .then(({ data }) => {
+          if (data) setWatermarkUrl(data.signedUrl);
+        });
+    }
+  }, [appSettings?.auth_signature_url, appSettings?.watermark_url]);
 
   if (!printData) return <div ref={innerRef}></div>;
 
   return (
-    <div ref={innerRef} style={{ padding: '40px', fontFamily: 'system-ui, sans-serif', display: 'none' }} className="print-receipt-wrapper">
+    <div ref={innerRef} style={{ padding: '40px', fontFamily: 'system-ui, sans-serif', display: 'none', position: 'relative' }} className="print-receipt-wrapper">
       <style type="text/css" media="print">
         {`
           @page { size: auto; margin: 0mm; }
           .print-receipt-wrapper { display: block !important; }
         `}
       </style>
-      <div style={{ border: '2px solid #000', padding: '30px', maxWidth: '600px', margin: '0 auto' }}>
+      
+      {watermarkUrl && (
+        <div style={{
+          position: 'absolute',
+          top: '50%',
+          left: '50%',
+          transform: 'translate(-50%, -50%)',
+          width: '70%',
+          height: '70%',
+          backgroundImage: `url(${watermarkUrl})`,
+          backgroundRepeat: 'no-repeat',
+          backgroundPosition: 'center',
+          backgroundSize: 'contain',
+          opacity: 0.08,
+          pointerEvents: 'none',
+          zIndex: 0
+        }} />
+      )}
+
+      <div style={{ border: '2px solid #000', padding: '30px', maxWidth: '600px', margin: '0 auto', position: 'relative', zIndex: 1, backgroundColor: 'transparent' }}>
         <div style={{ textAlign: 'center', marginBottom: '30px', borderBottom: '2px solid #000', paddingBottom: '20px' }}>
           <h1 style={{ margin: '0 0 10px 0', fontSize: '28px', textTransform: 'uppercase' }}>{projectName || 'Plaza Management'}</h1>
           <h2 style={{ margin: 0, color: '#555' }}>Rent Receipt</h2>
