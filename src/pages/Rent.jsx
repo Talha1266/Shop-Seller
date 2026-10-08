@@ -44,7 +44,7 @@ const RentReceiptPrint = ({ printData, innerRef, projectName, appSettings }) => 
             <img 
               src={watermarkUrl} 
               alt="Logo" 
-              style={{ maxHeight: '110px', maxWidth: '130px', objectFit: 'contain', mixBlendMode: 'multiply', marginRight: '20px' }} 
+              style={{ maxHeight: '140px', maxWidth: '160px', objectFit: 'contain', mixBlendMode: 'multiply', marginRight: '20px' }} 
             />
           )}
           
