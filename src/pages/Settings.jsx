@@ -31,10 +31,10 @@ export default function Settings() {
       if (data) {
         setSettings(data);
         if (data.auth_signature_url) {
-          const { data: urlData } = supabase.storage
+          const { data: urlData } = await supabase.storage
             .from('tenant-documents')
-            .getPublicUrl(data.auth_signature_url);
-          if (urlData) setPreview(urlData.publicUrl);
+            .createSignedUrl(data.auth_signature_url, 3600);
+          if (urlData) setPreview(urlData.signedUrl);
         }
       }
     } catch (err) {

@@ -4,7 +4,21 @@ import { useDb } from '../hooks/useDb';
 import { Plus, X, Search, DollarSign, Printer, Trash2 } from 'lucide-react';
 import { useReactToPrint } from 'react-to-print';
 import { useProject } from '../contexts/ProjectContext';
+import { supabase } from '../supabaseClient';
 const RentReceiptPrint = ({ printData, innerRef, projectName, appSettings }) => {
+  const [signatureUrl, setSignatureUrl] = useState('');
+
+  useEffect(() => {
+    if (appSettings?.auth_signature_url) {
+      supabase.storage
+        .from('tenant-documents')
+        .createSignedUrl(appSettings.auth_signature_url, 3600)
+        .then(({ data }) => {
+          if (data) setSignatureUrl(data.signedUrl);
+        });
+    }
+  }, [appSettings?.auth_signature_url]);
+
   if (!printData) return <div ref={innerRef}></div>;
 
   return (
@@ -59,9 +73,9 @@ const RentReceiptPrint = ({ printData, innerRef, projectName, appSettings }) => 
 
         <div style={{ marginTop: '50px', display: 'flex', justifyContent: 'flex-end' }}>
           <div style={{ width: '250px', textAlign: 'center' }}>
-            {appSettings?.auth_signature_url && (
+            {signatureUrl && (
               <img 
-                src={`${import.meta.env.VITE_SUPABASE_URL}/storage/v1/object/public/tenant-documents/${appSettings.auth_signature_url}`} 
+                src={signatureUrl} 
                 alt="Signature" 
                 style={{ maxHeight: '60px', marginBottom: '5px', objectFit: 'contain' }} 
               />
