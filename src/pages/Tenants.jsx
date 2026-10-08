@@ -438,11 +438,16 @@ export default function Tenants({ currentUser }) {
                   return isNaN(num) ? 99 : num + 10;
                 };
 
-                const filteredTenants = tenants.filter(t => 
-                  t.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
-                  t.cnic.includes(searchQuery) ||
-                  (t.mobile && t.mobile.includes(searchQuery))
-                );
+                const filteredTenants = tenants.filter(t => {
+                  const matchesSearch = t.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
+                                        t.cnic.includes(searchQuery) ||
+                                        (t.mobile && t.mobile.includes(searchQuery));
+                  
+                  const activeShopStr = getShopDetails(t.id);
+                  const hasActiveShop = activeShopStr !== 'None (Historical)' && activeShopStr !== 'None';
+                  
+                  return matchesSearch && hasActiveShop;
+                });
 
                 const sortedTenants = [...filteredTenants].sort((a, b) => {
                   const saleA = sales.find(s => s.tenantId === a.id);
