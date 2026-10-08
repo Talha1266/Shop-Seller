@@ -116,8 +116,10 @@ export default function Tenants({ currentUser }) {
     const tenantSales = sales.filter(s => s.tenantId === tenantId);
     if (tenantSales.length === 0) return 'None';
     
-    const shopDetails = tenantSales.map(sale => {
-      const shop = shops.find(s => s.id === sale.shopId);
+    const uniqueShops = new Set(tenantSales.map(s => s.shopId));
+    
+    const shopDetails = Array.from(uniqueShops).map(shopId => {
+      const shop = shops.find(s => s.id === shopId);
       return shop ? `Shop ${shop.shopNumber} (Block ${shop.block}, Floor ${shop.floor})` : 'Unknown';
     });
     

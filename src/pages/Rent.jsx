@@ -153,8 +153,18 @@ export default function Rent({ currentUser }) {
 
   // Only consider active sales with a monthly rent > 0
   const activeRentSales = useMemo(() => {
-    let filtered = sales.filter(s => {
+    const latestSalesMap = new Map();
+    sales.forEach(s => {
+      const existing = latestSalesMap.get(s.shopId);
+      if (!existing || new Date(s.date || 0) > new Date(existing.date || 0)) {
+        latestSalesMap.set(s.shopId, s);
+      }
+    });
+    const uniqueSales = Array.from(latestSalesMap.values());
+
+    let filtered = uniqueSales.filter(s => {
       const shop = shops.find(sh => sh.id === s.shopId);
+      if (shop?.status !== 'Occupied') return false;
       const rentDue = parseFloat(s.monthly_rent || shop?.monthly_rent || 0);
       return rentDue > 0;
     });
