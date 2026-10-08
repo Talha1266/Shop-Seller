@@ -39,24 +39,19 @@ const RentReceiptPrint = ({ printData, innerRef, projectName, appSettings }) => 
         `}
       </style>
       <div style={{ border: '2px solid #000', padding: '30px', maxWidth: '600px', margin: '0 auto', position: 'relative', zIndex: 1, backgroundColor: 'transparent' }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '30px', borderBottom: '2px solid #000', paddingBottom: '20px' }}>
-          {watermarkUrl ? (
+        <div style={{ display: 'flex', alignItems: 'center', marginBottom: '30px', borderBottom: '2px solid #000', paddingBottom: '20px' }}>
+          {watermarkUrl && (
             <img 
               src={watermarkUrl} 
               alt="Logo" 
-              style={{ maxHeight: '80px', maxWidth: '100px', objectFit: 'contain', mixBlendMode: 'multiply', filter: 'grayscale(100%) contrast(300%) brightness(150%)' }} 
+              style={{ maxHeight: '110px', maxWidth: '130px', objectFit: 'contain', mixBlendMode: 'multiply', filter: 'grayscale(100%) contrast(300%) brightness(150%)', marginRight: '20px' }} 
             />
-          ) : (
-            <div style={{ width: '100px' }}></div>
           )}
           
-          <div style={{ flex: 1, textAlign: 'center', padding: '0 20px' }}>
-            <h1 style={{ margin: '0 0 10px 0', fontSize: '22px', textTransform: 'uppercase', lineHeight: '1.2' }}>{projectName || 'Plaza Management'}</h1>
+          <div style={{ flex: 1, textAlign: 'center' }}>
+            <h1 style={{ margin: '0 0 10px 0', fontSize: '24px', textTransform: 'uppercase', lineHeight: '1.2' }}>{projectName || 'Plaza Management'}</h1>
             <h2 style={{ margin: 0, color: '#555', fontSize: '18px' }}>Rent Receipt</h2>
           </div>
-          
-          {/* Invisible spacer for perfectly centered text */}
-          <div style={{ width: '100px' }}></div>
         </div>
         
         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '20px' }}>
