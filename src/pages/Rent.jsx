@@ -49,7 +49,13 @@ const RentReceiptPrint = ({ printData, innerRef, projectName, appSettings }) => 
           )}
           
           <div style={{ flex: 1, textAlign: 'center' }}>
-            <h1 style={{ margin: '0 0 10px 0', fontSize: '24px', textTransform: 'uppercase', lineHeight: '1.2' }}>{projectName || 'Plaza Management'}</h1>
+            <h1 style={{ margin: '0 0 10px 0', fontSize: '24px', textTransform: 'uppercase', lineHeight: '1.2' }}>
+              {projectName ? (
+                projectName.toUpperCase().includes(' CHAK') 
+                  ? <>{projectName.split(/(?=\bCHAK\b)/i)[0]}<br/>{projectName.split(/(?=\bCHAK\b)/i)[1]}</>
+                  : projectName
+              ) : 'Plaza Management'}
+            </h1>
             <h2 style={{ margin: 0, color: '#555', fontSize: '18px' }}>Rent Receipt</h2>
           </div>
         </div>
