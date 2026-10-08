@@ -13,6 +13,7 @@ import AdminPanel from './pages/AdminPanel';
 import Summary from './pages/Summary';
 import Contractor from './pages/Contractor';
 import Rent from './pages/Rent';
+import Settings from './pages/Settings';
 import ProjectsDashboard from './pages/ProjectsDashboard';
 import { supabase } from './supabaseClient';
 import { ProjectProvider, useProject } from './contexts/ProjectContext';
@@ -40,6 +41,7 @@ function AppContent({ currentUser, handleLogout }) {
           <Routes>
             <Route path="/" element={<Dashboard />} />
             <Route path="/setup" element={<Setup />} />
+            <Route path="/settings" element={<Settings />} />
             <Route path="/shops" element={<Shops currentUser={currentUser} />} />
             <Route path="/tenants" element={<Tenants currentUser={currentUser} />} />
             <Route path="/ledger" element={<Ledger currentUser={currentUser} />} />

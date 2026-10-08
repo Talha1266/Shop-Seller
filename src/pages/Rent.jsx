@@ -4,7 +4,7 @@ import { useDb } from '../hooks/useDb';
 import { Plus, X, Search, DollarSign, Printer, Trash2 } from 'lucide-react';
 import { useReactToPrint } from 'react-to-print';
 import { useProject } from '../contexts/ProjectContext';
-const RentReceiptPrint = ({ printData, innerRef, projectName }) => {
+const RentReceiptPrint = ({ printData, innerRef, projectName, appSettings }) => {
   if (!printData) return <div ref={innerRef}></div>;
 
   return (
@@ -57,9 +57,20 @@ const RentReceiptPrint = ({ printData, innerRef, projectName }) => {
           </tbody>
         </table>
 
-        <div style={{ marginTop: '50px', display: 'flex', justifyContent: 'space-between' }}>
-          <div style={{ borderTop: '1px solid #000', paddingTop: '10px', width: '200px', textAlign: 'center' }}>
-            Authorized Signature
+        <div style={{ marginTop: '50px', display: 'flex', justifyContent: 'flex-end' }}>
+          <div style={{ width: '250px', textAlign: 'center' }}>
+            {appSettings?.auth_signature_url && (
+              <img 
+                src={`${import.meta.env.VITE_SUPABASE_URL}/storage/v1/object/public/tenant-documents/${appSettings.auth_signature_url}`} 
+                alt="Signature" 
+                style={{ maxHeight: '60px', marginBottom: '5px', objectFit: 'contain' }} 
+              />
+            )}
+            <div style={{ borderTop: '1px solid #000', paddingTop: '10px' }}>
+              <p style={{ margin: 0, fontWeight: 'bold' }}>{appSettings?.auth_name || 'Authorized Signature'}</p>
+              {appSettings?.auth_department && <p style={{ margin: '2px 0', fontSize: '12px' }}>{appSettings.auth_department}</p>}
+              {appSettings?.auth_branch && <p style={{ margin: '2px 0', fontSize: '12px' }}>{appSettings.auth_branch}</p>}
+            </div>
           </div>
         </div>
         
@@ -125,6 +136,8 @@ export default function Rent({ currentUser }) {
   const shops = useSupabase('shops') || [];
   const tenants = useSupabase('tenants') || [];
   const rentCollections = useSupabase('rent_collections') || [];
+  const appSettingsList = useSupabase('app_settings') || [];
+  const appSettings = appSettingsList.length > 0 ? appSettingsList[0] : null;
 
   // Helper to format YYYY-MM
   const getMonthString = (date) => {
@@ -273,6 +286,7 @@ export default function Rent({ currentUser }) {
         printData={printData}
         innerRef={printRef}
         projectName={activeProject?.name}
+        appSettings={appSettings}
       />
       <div className="page-header" style={{ flexWrap: 'wrap', gap: '1rem' }}>
         <h1 className="page-title">Rent & Maintenance</h1>

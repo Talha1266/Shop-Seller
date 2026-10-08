@@ -23,6 +23,7 @@ export default function Layout({ children, currentUser, onLogout }) {
     { path: '/payments', label: 'Payments', icon: CreditCard },
     { path: '/contractor', label: 'Contractors', icon: HardHat },
     { path: '/summary', label: 'Summary', icon: PieChart },
+    { path: '/settings', label: 'Receipt Settings', icon: Receipt },
   ];
 
   if (currentUser?.email === 'talhanaveed89@gmail.com') {
