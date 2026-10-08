@@ -88,7 +88,7 @@ const RentReceiptPrint = ({ printData, innerRef, projectName, appSettings }) => 
           </div>
         </div>
         
-        <div style={{ marginTop: '30px', textAlign: 'center', color: '#666', fontSize: '12px' }}>
+        <div style={{ marginTop: '40px', textAlign: 'center', color: '#000', fontSize: '18px', fontWeight: 'bold' }}>
           Thank you for your payment!
         </div>
       </div>
