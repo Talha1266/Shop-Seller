@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useMemo } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useSupabase } from '../hooks/useSupabase';
 import { useDb } from '../hooks/useDb';
@@ -112,18 +112,31 @@ export default function Tenants({ currentUser }) {
   
   const availableShops = shops.filter(s => s.status === 'Available');
 
-  const getShopDetails = (tenantId) => {
-    const tenantSales = sales.filter(s => s.tenantId === tenantId);
-    if (tenantSales.length === 0) return 'None';
-    
-    const uniqueShops = new Set(tenantSales.map(s => s.shopId));
-    
-    const shopDetails = Array.from(uniqueShops).map(shopId => {
-      const shop = shops.find(s => s.id === shopId);
-      return shop ? `Shop ${shop.shopNumber} (Block ${shop.block}, Floor ${shop.floor})` : 'Unknown';
+  const activeSalesMap = useMemo(() => {
+    const map = new Map();
+    sales.forEach(s => {
+      const existing = map.get(s.shopId);
+      if (!existing || new Date(s.date || 0) > new Date(existing.date || 0)) {
+        map.set(s.shopId, s);
+      }
     });
+    return map;
+  }, [sales]);
+
+  const getShopDetails = (tenantId) => {
+    const activeTenantShops = Array.from(activeSalesMap.values())
+      .filter(s => s.tenantId === tenantId)
+      .map(s => {
+        const shop = shops.find(sh => sh.id === s.shopId);
+        return shop && shop.status === 'Occupied' ? shop : null;
+      })
+      .filter(Boolean);
+      
+    if (activeTenantShops.length === 0) return 'None (Historical)';
     
-    return shopDetails.join(', ');
+    return activeTenantShops.map(shop => 
+      `Shop ${shop.shopNumber} (Block ${shop.block}, Floor ${shop.floor})`
+    ).join(', ');
   };
 
   const handleDeleteTenant = async (tenant) => {
