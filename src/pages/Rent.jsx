@@ -38,24 +38,27 @@ const RentReceiptPrint = ({ printData, innerRef, projectName, appSettings }) => 
           .print-receipt-wrapper { display: block !important; }
         `}
       </style>
-      <div style={{ border: '2px solid #000', padding: '30px', maxWidth: '600px', margin: '0 auto', position: 'relative', zIndex: 1, backgroundColor: 'transparent' }}>
+      <div style={{ border: '2px solid #000', padding: '30px', maxWidth: '700px', margin: '0 auto', position: 'relative', zIndex: 1, backgroundColor: 'transparent' }}>
         <div style={{ display: 'flex', alignItems: 'center', marginBottom: '30px', borderBottom: '2px solid #000', paddingBottom: '20px' }}>
           {watermarkUrl && (
             <img 
               src={watermarkUrl} 
               alt="Logo" 
-              style={{ maxHeight: '110px', maxWidth: '130px', objectFit: 'contain', mixBlendMode: 'multiply', filter: 'grayscale(100%) contrast(300%) brightness(150%)', marginRight: '20px' }} 
+              style={{ maxHeight: '110px', maxWidth: '130px', objectFit: 'contain', mixBlendMode: 'multiply', marginRight: '20px' }} 
             />
           )}
           
           <div style={{ flex: 1, textAlign: 'center' }}>
-            <h1 style={{ margin: '0 0 10px 0', fontSize: '24px', textTransform: 'uppercase', lineHeight: '1.2' }}>
+            <div style={{ margin: '0 0 10px 0', textTransform: 'uppercase', lineHeight: '1.3' }}>
               {projectName ? (
                 projectName.toUpperCase().includes(' CHAK') 
-                  ? <>{projectName.split(/(?=\bCHAK\b)/i)[0]}<br/>{projectName.split(/(?=\bCHAK\b)/i)[1]}</>
-                  : projectName
-              ) : 'Plaza Management'}
-            </h1>
+                  ? <>
+                      <span style={{ fontSize: '24px', fontWeight: 'bold' }}>{projectName.split(/(?=\bCHAK\b)/i)[0]}</span><br/>
+                      <span style={{ fontSize: '18px', fontWeight: 'bold' }}>{projectName.split(/(?=\bCHAK\b)/i)[1]}</span>
+                    </>
+                  : <span style={{ fontSize: '24px', fontWeight: 'bold' }}>{projectName}</span>
+              ) : <span style={{ fontSize: '24px', fontWeight: 'bold' }}>Plaza Management</span>}
+            </div>
             <h2 style={{ margin: 0, color: '#555', fontSize: '18px' }}>Rent Receipt</h2>
           </div>
         </div>
