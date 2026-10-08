@@ -22,8 +22,18 @@ export default function Dashboard() {
 
   const occupiedShopIds = new Set(shops.filter(s => s.status === 'Occupied').map(s => s.id));
 
-  // Only count sales that belong to an existing occupied shop
-  const activeSales = sales.filter(s => occupiedShopIds.has(s.shopId));
+  // Deduplicate to get only the latest sale per occupied shop
+  const latestSalesMap = new Map();
+  sales.forEach(s => {
+    if (occupiedShopIds.has(s.shopId)) {
+      const existing = latestSalesMap.get(s.shopId);
+      if (!existing || new Date(s.date || 0) > new Date(existing.date || 0)) {
+        latestSalesMap.set(s.shopId, s);
+      }
+    }
+  });
+  
+  const activeSales = Array.from(latestSalesMap.values());
   const activeSaleIds = new Set(activeSales.map(s => s.id));
   const activeTenantIds = new Set(activeSales.map(s => s.tenantId).filter(Boolean));
 

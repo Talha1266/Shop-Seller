@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useMemo } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useSupabase } from '../hooks/useSupabase';
 import { useDb } from '../hooks/useDb';
@@ -129,8 +129,27 @@ export default function Ledger({ currentUser }) {
   const tenants = useSupabase('tenants') || [];
   const sales = useSupabase('sales') || [];
   const shops = useSupabase('shops') || [];
-
   const payments = useSupabase('payments') || [];
+
+  const activeSalesMap = useMemo(() => {
+    const map = new Map();
+    sales.forEach(s => {
+      const shop = shops.find(sh => sh.id === s.shopId);
+      if (shop?.status === 'Occupied') {
+        const existing = map.get(s.shopId);
+        if (!existing || new Date(s.date || 0) > new Date(existing.date || 0)) {
+          map.set(s.shopId, s);
+        }
+      }
+    });
+    return map;
+  }, [sales, shops]);
+
+  const activeTenantIds = useMemo(() => {
+    return new Set(Array.from(activeSalesMap.values()).map(s => s.tenantId));
+  }, [activeSalesMap]);
+
+  const activeTenants = tenants.filter(t => activeTenantIds.has(t.id));
 
   const handlePrint = useReactToPrint({
     contentRef: printRef,
@@ -145,12 +164,13 @@ export default function Ledger({ currentUser }) {
       const tId = selectedId;
       tenant = tenants.find(t => t.id === tId);
       if (tenant) {
-        tenantSales = sales.filter(s => s.tenantId === tId);
+        // Only include active sales for this tenant
+        tenantSales = Array.from(activeSalesMap.values()).filter(s => s.tenantId === tId);
         tenantShops = tenantSales.map(sale => shops.find(s => s.id === sale.shopId)).filter(Boolean);
       }
     } else if (searchMode === 'shop') {
       const sId = selectedId;
-      const sale = sales.find(s => s.shopId === sId);
+      const sale = activeSalesMap.get(sId);
       if (sale) {
         tenant = tenants.find(t => t.id === sale.tenantId);
         if (tenant) {
@@ -302,9 +322,9 @@ export default function Ledger({ currentUser }) {
             >
               <option value="">{searchMode === 'tenant' ? '-- Select Tenant --' : '-- Select Shop --'}</option>
               {searchMode === 'tenant' 
-                ? tenants.map(t => <option key={t.id} value={t.id}>{t.name} ({t.cnic})</option>)
+                ? activeTenants.map(t => <option key={t.id} value={t.id}>{t.name} ({t.cnic})</option>)
                 : shops.filter(s => s.status === 'Occupied' && s.block === selectedBlock).map(s => {
-                    const sale = sales.find(x => x.shopId === s.id);
+                    const sale = activeSalesMap.get(s.id);
                     const t = sale ? tenants.find(x => x.id === sale.tenantId) : null;
                     return <option key={s.id} value={s.id}>Shop {s.shopNumber} (Block {s.block}) {t ? `(${t.name})` : ''}</option>
                   })
