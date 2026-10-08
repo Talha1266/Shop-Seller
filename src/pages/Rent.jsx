@@ -38,27 +38,15 @@ const RentReceiptPrint = ({ printData, innerRef, projectName, appSettings }) => 
           .print-receipt-wrapper { display: block !important; }
         `}
       </style>
-      
-      {watermarkUrl && (
-        <div style={{
-          position: 'absolute',
-          top: '50%',
-          left: '50%',
-          transform: 'translate(-50%, -50%)',
-          width: '70%',
-          height: '70%',
-          backgroundImage: `url(${watermarkUrl})`,
-          backgroundRepeat: 'no-repeat',
-          backgroundPosition: 'center',
-          backgroundSize: 'contain',
-          opacity: 0.08,
-          pointerEvents: 'none',
-          zIndex: 0
-        }} />
-      )}
-
       <div style={{ border: '2px solid #000', padding: '30px', maxWidth: '600px', margin: '0 auto', position: 'relative', zIndex: 1, backgroundColor: 'transparent' }}>
-        <div style={{ textAlign: 'center', marginBottom: '30px', borderBottom: '2px solid #000', paddingBottom: '20px' }}>
+        <div style={{ textAlign: 'center', marginBottom: '30px', borderBottom: '2px solid #000', paddingBottom: '20px', position: 'relative' }}>
+          {watermarkUrl && (
+            <img 
+              src={watermarkUrl} 
+              alt="Logo" 
+              style={{ position: 'absolute', left: 0, top: '50%', transform: 'translateY(-50%)', maxHeight: '70px', maxWidth: '100px', objectFit: 'contain' }} 
+            />
+          )}
           <h1 style={{ margin: '0 0 10px 0', fontSize: '28px', textTransform: 'uppercase' }}>{projectName || 'Plaza Management'}</h1>
           <h2 style={{ margin: 0, color: '#555' }}>Rent Receipt</h2>
         </div>

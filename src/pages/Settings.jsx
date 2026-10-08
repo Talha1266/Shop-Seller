@@ -138,14 +138,14 @@ export default function Settings() {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
         <div>
           <h1 className="page-title">Receipt Settings</h1>
-          <p className="page-subtitle">Configure your stamp and watermark for official receipts.</p>
+          <p className="page-subtitle">Configure your logo and signature for official receipts.</p>
         </div>
       </div>
 
       <div className="card" style={{ maxWidth: '600px' }}>
         <form onSubmit={handleSave}>
           <div className="form-group">
-            <label className="form-label">Receipt Watermark (Logo/Seal)</label>
+            <label className="form-label">Receipt Logo</label>
             <div style={{ 
               border: '2px dashed var(--color-border)', 
               borderRadius: '8px', 
@@ -156,15 +156,15 @@ export default function Settings() {
             }}>
               {watermarkPreview ? (
                 <div>
-                  <img src={watermarkPreview} alt="Watermark Preview" style={{ maxHeight: '100px', objectFit: 'contain' }} />
+                  <img src={watermarkPreview} alt="Logo Preview" style={{ maxHeight: '100px', objectFit: 'contain' }} />
                   <p style={{ margin: '1rem 0 0', fontSize: '0.875rem', color: 'var(--color-text-muted)' }}>
-                    Click to change watermark
+                    Click to change logo
                   </p>
                 </div>
               ) : (
                 <div style={{ color: 'var(--color-text-muted)' }}>
                   <ImageIcon size={48} style={{ margin: '0 auto 1rem', opacity: 0.5 }} />
-                  <p style={{ margin: 0 }}>Click to upload watermark</p>
+                  <p style={{ margin: 0 }}>Click to upload logo</p>
                 </div>
               )}
               <input
