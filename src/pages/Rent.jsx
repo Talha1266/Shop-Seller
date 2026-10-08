@@ -77,7 +77,7 @@ const RentReceiptPrint = ({ printData, innerRef, projectName, appSettings }) => 
               <img 
                 src={signatureUrl} 
                 alt="Signature" 
-                style={{ maxHeight: '60px', marginBottom: '5px', objectFit: 'contain', mixBlendMode: 'multiply' }} 
+                style={{ maxHeight: '60px', marginBottom: '5px', objectFit: 'contain', mixBlendMode: 'multiply', filter: 'grayscale(100%) contrast(300%) brightness(150%)' }} 
               />
             )}
             <div style={{ borderTop: '1px solid #000', paddingTop: '10px' }}>

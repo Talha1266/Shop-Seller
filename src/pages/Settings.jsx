@@ -168,7 +168,7 @@ export default function Settings() {
             }}>
               {preview ? (
                 <div>
-                  <img src={preview} alt="Signature Preview" style={{ maxHeight: '100px', objectFit: 'contain', mixBlendMode: 'multiply' }} />
+                  <img src={preview} alt="Signature Preview" style={{ maxHeight: '100px', objectFit: 'contain', mixBlendMode: 'multiply', filter: 'grayscale(100%) contrast(300%) brightness(150%)' }} />
                   <p style={{ margin: '1rem 0 0', fontSize: '0.875rem', color: 'var(--color-text-muted)' }}>
                     Click to change signature
                   </p>
