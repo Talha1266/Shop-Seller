@@ -12,7 +12,8 @@ export function useSupabase(tableName) {
     const fetchData = async () => {
       let query = supabase.from(tableName).select('*');
       
-      if (tableName !== 'users' && tableName !== 'projects' && activeProject) {
+      const globalTables = ['users', 'projects', 'app_settings', 'petrol_pumps', 'petrol_pump_rent_collections'];
+      if (!globalTables.includes(tableName) && activeProject) {
         query = query.eq('project_id', activeProject.id);
       }
       

@@ -14,6 +14,7 @@ import Summary from './pages/Summary';
 import Contractor from './pages/Contractor';
 import Rent from './pages/Rent';
 import Settings from './pages/Settings';
+import PetrolPumpDetail from './pages/PetrolPumpDetail';
 import ProjectsDashboard from './pages/ProjectsDashboard';
 import { supabase } from './supabaseClient';
 import { ProjectProvider, useProject } from './contexts/ProjectContext';
@@ -35,11 +36,13 @@ function AppContent({ currentUser, handleLogout }) {
         {!activeProject ? (
           <Routes>
             <Route path="/" element={<ProjectsDashboard />} />
+            <Route path="/petrol-pump/:id" element={<PetrolPumpDetail currentUser={currentUser} />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         ) : (
           <Routes>
             <Route path="/" element={<Dashboard />} />
+            <Route path="/petrol-pump/:id" element={<PetrolPumpDetail currentUser={currentUser} />} />
             <Route path="/setup" element={<Setup />} />
             <Route path="/settings" element={<Settings />} />
             <Route path="/shops" element={<Shops currentUser={currentUser} />} />

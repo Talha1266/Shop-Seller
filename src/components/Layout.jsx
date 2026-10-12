@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { LayoutDashboard, Store, Users, Receipt, CreditCard, FileText, ShieldAlert, LogOut, Menu, X, PieChart, Plus, Folder, HardHat, Key } from 'lucide-react';
+import { LayoutDashboard, Store, Users, Receipt, CreditCard, FileText, ShieldAlert, LogOut, Menu, X, PieChart, Plus, Folder, HardHat, Key, Building2, Fuel } from 'lucide-react';
 import { useProject } from '../contexts/ProjectContext';
 
 export default function Layout({ children, currentUser, onLogout }) {
@@ -30,6 +30,8 @@ export default function Layout({ children, currentUser, onLogout }) {
     navItems.push({ path: '/admin', label: 'Admin Panel', icon: ShieldAlert });
   }
 
+  const isPetrolPumpRoute = location.pathname.startsWith('/petrol-pump');
+
   return (
     <div className="app-container">
       {isSidebarOpen && (
@@ -38,9 +40,9 @@ export default function Layout({ children, currentUser, onLogout }) {
       <aside className={`sidebar ${isSidebarOpen ? 'open' : ''}`}>
         <div className="sidebar-header" style={{ justifyContent: 'space-between' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-            <Store size={24} className="text-primary" />
+            {isPetrolPumpRoute ? <Fuel size={24} color="#ef4444" /> : <Store size={24} className="text-primary" />}
             <span className="sidebar-title" style={{ fontWeight: 700, background: 'linear-gradient(45deg, var(--color-primary), #8b5cf6)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
-              {activeProject ? activeProject.name : 'PlazaManager'}
+              {isPetrolPumpRoute ? 'Petrol Pump' : (activeProject ? activeProject.name : 'PlazaManager')}
             </span>
           </div>
           <button className="mobile-only sidebar-close-btn" onClick={() => setIsSidebarOpen(false)}>
@@ -48,7 +50,7 @@ export default function Layout({ children, currentUser, onLogout }) {
           </button>
         </div>
         
-        {activeProject && (
+        {activeProject && !isPetrolPumpRoute ? (
           <nav className="sidebar-nav">
             <button
               onClick={() => changeActiveProject(null)}
@@ -56,7 +58,7 @@ export default function Layout({ children, currentUser, onLogout }) {
               style={{ width: '100%', textAlign: 'left', background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--color-text)' }}
             >
               <Folder size={20} />
-              Switch Project
+              Switch Property
             </button>
             <div style={{ height: '1px', backgroundColor: 'var(--color-border)', margin: '0.5rem 1rem' }}></div>
             {navItems.map((item) => (
@@ -70,6 +72,16 @@ export default function Layout({ children, currentUser, onLogout }) {
               </Link>
             ))}
           </nav>
+        ) : (
+          <nav className="sidebar-nav">
+            <Link
+              to="/"
+              className={`nav-item ${location.pathname === '/' ? 'active' : ''}`}
+            >
+              <Building2 size={20} />
+              All Properties
+            </Link>
+          </nav>
         )}
       </aside>
       <main className="main-content">
@@ -78,7 +90,11 @@ export default function Layout({ children, currentUser, onLogout }) {
             <button className="mobile-only menu-btn" onClick={() => setIsSidebarOpen(true)}>
               <Menu size={24} />
             </button>
-            <h2 className="topbar-title" style={{ fontWeight: 600, color: 'var(--color-text-main)' }}>{activeProject ? activeProject.name : 'Plaza Management System'}</h2>
+            <h2 className="topbar-title" style={{ fontWeight: 600, color: 'var(--color-text-main)' }}>
+              {isPetrolPumpRoute 
+                ? 'Petrol Pump Lease Management' 
+                : (activeProject ? activeProject.name : 'Property & Plaza Management')}
+            </h2>
           </div>
           <div className="topbar-user" style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
             <span style={{ fontSize: '0.875rem', color: 'var(--color-text-muted)', textTransform: 'capitalize' }}>

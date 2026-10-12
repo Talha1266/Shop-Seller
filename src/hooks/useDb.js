@@ -5,12 +5,15 @@ import { useProject } from '../contexts/ProjectContext';
 export function useDb() {
   const { activeProject } = useProject();
 
+  const globalTables = ['users', 'projects', 'app_settings', 'petrol_pumps', 'petrol_pump_rent_collections'];
+
   const db = useMemo(() => {
     function createTableProxy(tableName) {
+      const isGlobal = globalTables.includes(tableName);
       return {
         toArray: async () => {
           let query = supabase.from(tableName).select('*');
-          if (tableName !== 'users' && tableName !== 'projects' && activeProject) {
+          if (!isGlobal && activeProject) {
             query = query.eq('project_id', activeProject.id);
           }
           const { data } = await query;
@@ -18,7 +21,7 @@ export function useDb() {
         },
         add: async (item) => {
           const itemToInsert = { ...item };
-          if (tableName !== 'users' && tableName !== 'projects' && activeProject) {
+          if (!isGlobal && activeProject) {
             itemToInsert.project_id = activeProject.id;
           }
           const { data, error } = await supabase.from(tableName).insert(itemToInsert).select().single();
@@ -30,7 +33,7 @@ export function useDb() {
         },
         bulkAdd: async (items) => {
           const itemsToInsert = items.map(item => {
-            if (tableName !== 'users' && tableName !== 'projects' && activeProject) {
+            if (!isGlobal && activeProject) {
               return { ...item, project_id: activeProject.id };
             }
             return item;
@@ -61,7 +64,7 @@ export function useDb() {
             first: async () => {
               const key = Object.keys(queryObj)[0];
               let query = supabase.from(tableName).select('*').eq(key, queryObj[key]);
-              if (tableName !== 'users' && tableName !== 'projects' && activeProject) {
+              if (!isGlobal && activeProject) {
                 query = query.eq('project_id', activeProject.id);
               }
               const { data } = await query.single();
@@ -84,7 +87,9 @@ export function useDb() {
       documents: createTableProxy('documents'),
       contractor_payments: createTableProxy('contractor_payments'),
       contractor_documents: createTableProxy('contractor_documents'),
-      rent_collections: createTableProxy('rent_collections')
+      rent_collections: createTableProxy('rent_collections'),
+      petrol_pumps: createTableProxy('petrol_pumps'),
+      petrol_pump_rent_collections: createTableProxy('petrol_pump_rent_collections')
     };
   }, [activeProject]);
 
