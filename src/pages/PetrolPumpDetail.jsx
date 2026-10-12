@@ -10,6 +10,24 @@ import {
 } from 'lucide-react';
 import { useReactToPrint } from 'react-to-print';
 
+// Helper to format date YYYY-MM-DD to DD/MM/YYYY
+export const formatDate = (d) => {
+  if (!d) return '';
+  try {
+    const parts = String(d).split('-');
+    if (parts.length === 3 && parts[0].length === 4) {
+      return `${parts[2]}/${parts[1]}/${parts[0]}`;
+    }
+    const parsed = new Date(d);
+    if (!isNaN(parsed.getTime())) {
+      return parsed.toLocaleDateString();
+    }
+    return d;
+  } catch {
+    return d;
+  }
+};
+
 // Printable Receipt Component for Petrol Pump
 const PetrolPumpReceiptPrint = ({ printData, innerRef, pump, appSettings }) => {
   const [signatureUrl, setSignatureUrl] = useState('');
@@ -35,6 +53,10 @@ const PetrolPumpReceiptPrint = ({ printData, innerRef, pump, appSettings }) => {
   }, [appSettings?.auth_signature_url, appSettings?.watermark_url]);
 
   if (!printData || !pump) return <div ref={innerRef}></div>;
+
+  const periodText = (printData.period_from && printData.period_to)
+    ? `${formatDate(printData.period_from)} to ${formatDate(printData.period_to)}`
+    : (printData.month || 'N/A');
 
   return (
     <div ref={innerRef} style={{ padding: '40px', fontFamily: 'system-ui, sans-serif', display: 'none' }} className="print-receipt-wrapper">
@@ -74,14 +96,16 @@ const PetrolPumpReceiptPrint = ({ printData, innerRef, pump, appSettings }) => {
         {/* Receipt Meta */}
         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '20px' }}>
           <div><strong>Receipt No:</strong> {printData.receipt_no}</div>
-          <div><strong>Date:</strong> {new Date(printData.date).toLocaleDateString()}</div>
+          <div><strong>Payment Date:</strong> {formatDate(printData.date)}</div>
         </div>
 
-        {/* Property Details */}
+        {/* Property & Rent Period Details */}
         <div style={{ marginBottom: '20px', padding: '15px', backgroundColor: '#f9f9f9', border: '1px solid #ddd', borderRadius: '4px' }}>
           <p style={{ margin: '4px 0' }}><strong>Site Name:</strong> {pump.name}</p>
           <p style={{ margin: '4px 0' }}><strong>Site Location:</strong> {pump.location || 'N/A'}</p>
-          <p style={{ margin: '4px 0' }}><strong>For Month:</strong> {printData.month}</p>
+          <p style={{ margin: '4px 0' }}>
+            <strong>Rent Paid For Duration:</strong> {periodText}
+          </p>
           {printData.payment_method && (
             <p style={{ margin: '4px 0' }}><strong>Payment Mode:</strong> {printData.payment_method}</p>
           )}
@@ -97,7 +121,7 @@ const PetrolPumpReceiptPrint = ({ printData, innerRef, pump, appSettings }) => {
           </thead>
           <tbody>
             <tr>
-              <td style={{ padding: '12px 0', borderBottom: '1px solid #eee' }}>Monthly Lease Rent ({printData.month})</td>
+              <td style={{ padding: '12px 0', borderBottom: '1px solid #eee' }}>Lease Rent ({periodText})</td>
               <td style={{ padding: '12px 0', borderBottom: '1px solid #eee', textAlign: 'right' }}>Rs. {Number(printData.amount_paid).toLocaleString()}</td>
             </tr>
             {printData.fine_amount > 0 && (
@@ -159,6 +183,8 @@ export default function PetrolPumpDetail({ currentUser }) {
   const [selectedMonthStr, setSelectedMonthStr] = useState('');
   const [paymentAmount, setPaymentAmount] = useState('');
   const [paymentDate, setPaymentDate] = useState(new Date().toISOString().split('T')[0]);
+  const [periodFrom, setPeriodFrom] = useState('');
+  const [periodTo, setPeriodTo] = useState('');
   const [paymentMethod, setPaymentMethod] = useState('Bank Transfer');
   const [paymentNotes, setPaymentNotes] = useState('');
   const [printData, setPrintData] = useState(null);
@@ -278,17 +304,112 @@ export default function PetrolPumpDetail({ currentUser }) {
     return `${currentMonthDate.getFullYear()}-${String(currentMonthDate.getMonth() + 1).padStart(2, '0')}`;
   }, [currentMonthDate]);
 
-  // Check if current month is paid
+  // Helper to enrich payment data for receipt printing and duration parsing
+  const getEnrichedPaymentData = (payment) => {
+    if (!payment) return null;
+    let from = payment.period_from;
+    let to = payment.period_to;
+
+    // Check if period_from/to are stored in notes or month
+    if (!from || !to) {
+      if (payment.notes && payment.notes.includes('Duration:')) {
+        const match = payment.notes.match(/Duration:\s*(\S+)\s*to\s*(\S+)/);
+        if (match) {
+          from = from || match[1];
+          to = to || match[2];
+        }
+      }
+      if ((!from || !to) && payment.month && payment.month.includes(' to ')) {
+        const parts = payment.month.split(' to ');
+        if (parts.length === 2) {
+          from = from || parts[0].trim();
+          to = to || parts[1].trim();
+        }
+      }
+      // If payment.month is standard 'YYYY-MM'
+      if ((!from || !to) && payment.month && payment.month.match(/^\d{4}-\d{2}$/)) {
+        const [year, month] = payment.month.split('-').map(Number);
+        from = from || `${year}-${String(month).padStart(2, '0')}-01`;
+        const lastDay = new Date(year, month, 0).getDate();
+        to = to || `${year}-${String(month).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+      }
+    }
+
+    return {
+      ...payment,
+      period_from: from,
+      period_to: to
+    };
+  };
+
+  // Check if current month is paid (direct month match or covered by a multi-month period)
   const currentMonthPayment = useMemo(() => {
-    return pumpCollections.find(c => c.month === currentMonthStr);
-  }, [pumpCollections, currentMonthStr]);
+    const curYear = currentMonthDate.getFullYear();
+    const curMonth = currentMonthDate.getMonth() + 1;
+    const monthStart = new Date(curYear, curMonth - 1, 1);
+    const monthEnd = new Date(curYear, curMonth, 0);
+
+    return pumpCollections.find(c => {
+      // 1. Direct match with month string 'YYYY-MM'
+      if (c.month === currentMonthStr) return true;
+
+      // 2. Check period_from and period_to range overlap
+      const enriched = getEnrichedPaymentData(c);
+      if (enriched?.period_from && enriched?.period_to) {
+        const pStart = new Date(enriched.period_from);
+        const pEnd = new Date(enriched.period_to);
+        if (!isNaN(pStart.getTime()) && !isNaN(pEnd.getTime())) {
+          if (monthStart <= pEnd && monthEnd >= pStart) {
+            return true;
+          }
+        }
+      }
+      return false;
+    });
+  }, [pumpCollections, currentMonthStr, currentMonthDate]);
 
   // Handle open receive payment modal
   const handleOpenReceive = (monthStr) => {
-    setSelectedMonthStr(monthStr);
+    setSelectedMonthStr(monthStr || currentMonthStr);
+    const targetDate = monthStr ? new Date(`${monthStr}-01`) : currentMonthDate;
+    const year = targetDate.getFullYear();
+    const month = targetDate.getMonth() + 1;
+    const sDate = `${year}-${String(month).padStart(2, '0')}-01`;
+    const lastDay = new Date(year, month, 0).getDate();
+    const eDate = `${year}-${String(month).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+    
+    setPeriodFrom(sDate);
+    setPeriodTo(eDate);
     setPaymentAmount(currentExpectedMonthlyRent);
     setPaymentDate(new Date().toISOString().split('T')[0]);
+    setPaymentNotes('');
     setIsPaymentModalOpen(true);
+  };
+
+  // Handle preset duration button click (e.g. 1 month, 3 months, 6 months, 1 year)
+  const handleSetPresetDuration = (monthsCount) => {
+    let startYear, startMonth;
+    if (periodFrom) {
+      const parts = periodFrom.split('-').map(Number);
+      startYear = parts[0];
+      startMonth = parts[1] - 1; // 0-indexed
+    } else {
+      const now = new Date();
+      startYear = now.getFullYear();
+      startMonth = now.getMonth();
+    }
+    
+    const fromStr = `${startYear}-${String(startMonth + 1).padStart(2, '0')}-01`;
+    setPeriodFrom(fromStr);
+
+    // End date is last day of (startMonth + monthsCount)
+    const targetEnd = new Date(startYear, startMonth + monthsCount, 0);
+    const endYear = targetEnd.getFullYear();
+    const endMonth = String(targetEnd.getMonth() + 1).padStart(2, '0');
+    const endDay = String(targetEnd.getDate()).padStart(2, '0');
+    
+    setPeriodTo(`${endYear}-${endMonth}-${endDay}`);
+    setPaymentAmount(currentExpectedMonthlyRent * monthsCount);
   };
 
   // Submit payment
@@ -298,23 +419,50 @@ export default function PetrolPumpDetail({ currentUser }) {
 
     try {
       const receiptNo = `PP-REC-${Date.now().toString().slice(-6)}`;
+      const durationLabel = (periodFrom && periodTo)
+        ? `${periodFrom} to ${periodTo}`
+        : selectedMonthStr;
+
       const newPayment = {
         petrol_pump_id: pump.id,
-        month: selectedMonthStr,
+        month: durationLabel,
         amount_paid: Number(paymentAmount),
         expected_rent: currentExpectedMonthlyRent,
         fine_amount: 0,
         date: paymentDate,
         receipt_no: receiptNo,
         payment_method: paymentMethod,
-        notes: paymentNotes
+        notes: paymentNotes,
+        period_from: periodFrom,
+        period_to: periodTo
       };
 
-      await db.petrol_pump_rent_collections.add(newPayment);
+      try {
+        await db.petrol_pump_rent_collections.add(newPayment);
+      } catch (insertErr) {
+        // Fallback gracefully if period_from/to columns haven't been added yet in DB
+        if (insertErr.message && (insertErr.message.includes('period_from') || insertErr.message.includes('period_to') || insertErr.code === '42703')) {
+          const fallbackPayment = {
+            petrol_pump_id: pump.id,
+            month: durationLabel,
+            amount_paid: Number(paymentAmount),
+            expected_rent: currentExpectedMonthlyRent,
+            fine_amount: 0,
+            date: paymentDate,
+            receipt_no: receiptNo,
+            payment_method: paymentMethod,
+            notes: `Duration: ${periodFrom} to ${periodTo}. ${paymentNotes || ''}`
+          };
+          await db.petrol_pump_rent_collections.add(fallbackPayment);
+        } else {
+          throw insertErr;
+        }
+      }
+
       setIsPaymentModalOpen(false);
 
-      // Trigger automatic receipt print
-      setPrintData(newPayment);
+      // Trigger automatic receipt print with enriched duration data
+      setPrintData(getEnrichedPaymentData(newPayment));
       setTimeout(() => {
         handlePrint();
       }, 300);
@@ -337,7 +485,7 @@ export default function PetrolPumpDetail({ currentUser }) {
 
   // Print existing receipt
   const handlePrintExistingReceipt = (payment) => {
-    setPrintData(payment);
+    setPrintData(getEnrichedPaymentData(payment));
     setTimeout(() => {
       handlePrint();
     }, 200);
@@ -754,7 +902,7 @@ export default function PetrolPumpDetail({ currentUser }) {
                   <thead>
                     <tr style={{ borderBottom: '2px solid var(--color-border)', textAlign: 'left' }}>
                       <th style={{ padding: '0.75rem' }}>Receipt #</th>
-                      <th style={{ padding: '0.75rem' }}>For Month</th>
+                      <th style={{ padding: '0.75rem' }}>Rent Duration / Period</th>
                       <th style={{ padding: '0.75rem' }}>Payment Date</th>
                       <th style={{ padding: '0.75rem', textAlign: 'right' }}>Amount Paid</th>
                       <th style={{ padding: '0.75rem' }}>Payment Mode</th>
@@ -762,36 +910,45 @@ export default function PetrolPumpDetail({ currentUser }) {
                     </tr>
                   </thead>
                   <tbody>
-                    {pumpCollections.map((col) => (
-                      <tr key={col.id} style={{ borderBottom: '1px solid var(--color-border)' }}>
-                        <td style={{ padding: '0.75rem', fontWeight: 600 }}>{col.receipt_no}</td>
-                        <td style={{ padding: '0.75rem' }}>{col.month}</td>
-                        <td style={{ padding: '0.75rem' }}>{col.date}</td>
-                        <td style={{ padding: '0.75rem', textAlign: 'right', fontWeight: 600 }}>
-                          Rs. {Number(col.amount_paid).toLocaleString()}
-                        </td>
-                        <td style={{ padding: '0.75rem' }}>{col.payment_method || 'Bank Transfer'}</td>
-                        <td style={{ padding: '0.75rem', textAlign: 'center' }}>
-                          <div style={{ display: 'flex', justifyContent: 'center', gap: '0.5rem' }}>
-                            <button 
-                              className="btn btn-secondary btn-sm"
-                              onClick={() => handlePrintExistingReceipt(col)}
-                              title="Print Receipt"
-                            >
-                              <Printer size={14} />
-                            </button>
-                            <button 
-                              className="btn btn-secondary btn-sm"
-                              onClick={() => handleDeletePayment(col.id)}
-                              style={{ color: 'var(--color-error)' }}
-                              title="Delete Record"
-                            >
-                              <Trash2 size={14} />
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
+                    {pumpCollections.map((col) => {
+                      const enriched = getEnrichedPaymentData(col);
+                      const displayPeriod = (enriched?.period_from && enriched?.period_to)
+                        ? `${formatDate(enriched.period_from)} to ${formatDate(enriched.period_to)}`
+                        : (col.month || 'N/A');
+
+                      return (
+                        <tr key={col.id} style={{ borderBottom: '1px solid var(--color-border)' }}>
+                          <td style={{ padding: '0.75rem', fontWeight: 600 }}>{col.receipt_no}</td>
+                          <td style={{ padding: '0.75rem', fontWeight: 500, color: 'var(--color-primary)' }}>
+                            {displayPeriod}
+                          </td>
+                          <td style={{ padding: '0.75rem' }}>{formatDate(col.date)}</td>
+                          <td style={{ padding: '0.75rem', textAlign: 'right', fontWeight: 600 }}>
+                            Rs. {Number(col.amount_paid).toLocaleString()}
+                          </td>
+                          <td style={{ padding: '0.75rem' }}>{col.payment_method || 'Bank Transfer'}</td>
+                          <td style={{ padding: '0.75rem', textAlign: 'center' }}>
+                            <div style={{ display: 'flex', justifyContent: 'center', gap: '0.5rem' }}>
+                              <button 
+                                className="btn btn-secondary btn-sm"
+                                onClick={() => handlePrintExistingReceipt(col)}
+                                title="Print Receipt"
+                              >
+                                <Printer size={14} />
+                              </button>
+                              <button 
+                                className="btn btn-secondary btn-sm"
+                                onClick={() => handleDeletePayment(col.id)}
+                                style={{ color: 'var(--color-error)' }}
+                                title="Delete Record"
+                              >
+                                <Trash2 size={14} />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
@@ -803,52 +960,111 @@ export default function PetrolPumpDetail({ currentUser }) {
       {/* Receive Rent Payment Modal */}
       {isPaymentModalOpen && (
         <div className="modal-overlay" onClick={() => setIsPaymentModalOpen(false)}>
-          <div className="modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: '480px' }}>
+          <div className="modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: '520px' }}>
             <div className="modal-header">
               <h2 className="modal-title">Receive Petrol Pump Rent</h2>
               <button className="icon-btn" onClick={() => setIsPaymentModalOpen(false)}><X size={20} /></button>
             </div>
             <form onSubmit={handleSavePayment}>
-              <div className="form-group" style={{ marginBottom: '1rem' }}>
-                <label className="form-label">For Month</label>
-                <input 
-                  type="text" 
-                  className="input-field" 
-                  value={selectedMonthStr} 
-                  disabled 
-                />
+              {/* Info banner */}
+              <div style={{ padding: '0.75rem 1rem', backgroundColor: 'var(--color-bg-app)', borderRadius: '8px', border: '1px solid var(--color-border)', marginBottom: '1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem' }}>
+                <div>
+                  <span style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Site</span>
+                  <div style={{ fontWeight: 600, fontSize: '0.95rem' }}>{pump.name}</div>
+                </div>
+                <div style={{ textAlign: 'right' }}>
+                  <span style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Monthly Rate</span>
+                  <div style={{ fontWeight: 600, fontSize: '0.95rem', color: 'var(--color-primary)' }}>Rs. {currentExpectedMonthlyRent.toLocaleString()} / mo</div>
+                </div>
               </div>
 
-              <div className="form-group" style={{ marginBottom: '1rem' }}>
-                <label className="form-label">Expected Rent Amount</label>
-                <input 
-                  type="text" 
-                  className="input-field" 
-                  value={`Rs. ${currentExpectedMonthlyRent.toLocaleString()}`} 
-                  disabled 
-                />
+              {/* Quick Preset Duration Buttons */}
+              <div style={{ marginBottom: '1rem' }}>
+                <label className="form-label" style={{ marginBottom: '0.4rem', display: 'block', fontSize: '0.825rem', fontWeight: 600 }}>
+                  Quick Select Rent Duration:
+                </label>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '0.5rem' }}>
+                  <button 
+                    type="button" 
+                    className="btn btn-secondary btn-sm"
+                    onClick={() => handleSetPresetDuration(1)}
+                    style={{ fontSize: '0.8rem', padding: '0.4rem 0.2rem', textAlign: 'center' }}
+                  >
+                    1 Month
+                  </button>
+                  <button 
+                    type="button" 
+                    className="btn btn-secondary btn-sm"
+                    onClick={() => handleSetPresetDuration(3)}
+                    style={{ fontSize: '0.8rem', padding: '0.4rem 0.2rem', textAlign: 'center' }}
+                  >
+                    3 Months
+                  </button>
+                  <button 
+                    type="button" 
+                    className="btn btn-secondary btn-sm"
+                    onClick={() => handleSetPresetDuration(6)}
+                    style={{ fontSize: '0.8rem', padding: '0.4rem 0.2rem', textAlign: 'center' }}
+                  >
+                    6 Months
+                  </button>
+                  <button 
+                    type="button" 
+                    className="btn btn-secondary btn-sm"
+                    onClick={() => handleSetPresetDuration(12)}
+                    style={{ fontSize: '0.8rem', padding: '0.4rem 0.2rem', textAlign: 'center' }}
+                  >
+                    1 Year
+                  </button>
+                </div>
               </div>
 
-              <div className="form-group" style={{ marginBottom: '1rem' }}>
-                <label className="form-label">Amount Received (Rs.) *</label>
-                <input 
-                  type="number" 
-                  className="input-field" 
-                  value={paymentAmount}
-                  onChange={(e) => setPaymentAmount(e.target.value)}
-                  required 
-                />
+              {/* Rent Duration Dates From & To */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem', marginBottom: '1rem' }}>
+                <div className="form-group">
+                  <label className="form-label">Rent Period From *</label>
+                  <input 
+                    type="date" 
+                    className="input-field" 
+                    value={periodFrom}
+                    onChange={(e) => setPeriodFrom(e.target.value)}
+                    required 
+                  />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Rent Period To *</label>
+                  <input 
+                    type="date" 
+                    className="input-field" 
+                    value={periodTo}
+                    onChange={(e) => setPeriodTo(e.target.value)}
+                    required 
+                  />
+                </div>
               </div>
 
-              <div className="form-group" style={{ marginBottom: '1rem' }}>
-                <label className="form-label">Payment Date *</label>
-                <input 
-                  type="date" 
-                  className="input-field" 
-                  value={paymentDate}
-                  onChange={(e) => setPaymentDate(e.target.value)}
-                  required 
-                />
+              {/* Payment Date & Amount */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem', marginBottom: '1rem' }}>
+                <div className="form-group">
+                  <label className="form-label">Payment Date *</label>
+                  <input 
+                    type="date" 
+                    className="input-field" 
+                    value={paymentDate}
+                    onChange={(e) => setPaymentDate(e.target.value)}
+                    required 
+                  />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Amount Received (Rs.) *</label>
+                  <input 
+                    type="number" 
+                    className="input-field" 
+                    value={paymentAmount}
+                    onChange={(e) => setPaymentAmount(e.target.value)}
+                    required 
+                  />
+                </div>
               </div>
 
               <div className="form-group" style={{ marginBottom: '1rem' }}>
