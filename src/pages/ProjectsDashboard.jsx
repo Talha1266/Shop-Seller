@@ -32,8 +32,7 @@ export default function ProjectsDashboard() {
     lease_end_date: '',
     grace_period: '',
     monthly_rent: '',
-    annual_increase_pct: '',
-    lessee_name: ''
+    annual_increase_pct: ''
   });
 
   // Since activeProject is null here, useSupabase fetches ALL data across all projects
@@ -133,8 +132,7 @@ export default function ProjectsDashboard() {
         lease_end_date: pumpForm.lease_end_date || null,
         grace_period: pumpForm.grace_period.trim(),
         monthly_rent: Number(pumpForm.monthly_rent) || 0,
-        annual_increase_pct: Number(pumpForm.annual_increase_pct) || 0,
-        lessee_name: pumpForm.lessee_name.trim()
+        annual_increase_pct: Number(pumpForm.annual_increase_pct) || 0
       };
 
       const pumpId = await db.petrol_pumps.add(newPump);
@@ -149,8 +147,7 @@ export default function ProjectsDashboard() {
         lease_end_date: '',
         grace_period: '',
         monthly_rent: '',
-        annual_increase_pct: '',
-        lessee_name: ''
+        annual_increase_pct: ''
       });
 
       if (pumpId) {
@@ -385,7 +382,7 @@ export default function ProjectsDashboard() {
                         <div>
                           <h2 style={{ fontSize: '1.25rem', fontWeight: 'bold', margin: 0 }}>{pump.name}</h2>
                           <span style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)' }}>
-                            {pump.lessee_name ? `Lessee: ${pump.lessee_name}` : 'Leased Property'}
+                            Leased Petrol Pump
                           </span>
                         </div>
                       </div>
@@ -496,13 +493,13 @@ export default function ProjectsDashboard() {
             
             <form onSubmit={handleCreatePump}>
               <div className="form-group" style={{ marginBottom: '1rem' }}>
-                <label className="form-label">Petrol Pump / Site Name *</label>
+                <label className="form-label">Site Name *</label>
                 <input 
                   type="text" 
                   className="input-field" 
                   value={pumpForm.name}
                   onChange={e => setPumpForm({ ...pumpForm, name: e.target.value })}
-                  placeholder="e.g. PSO Station GT Road" 
+                  placeholder="e.g. M/S Gas and Oil Pakistan Limited" 
                   required 
                   autoFocus
                 />
@@ -515,7 +512,7 @@ export default function ProjectsDashboard() {
                   className="input-field" 
                   value={pumpForm.location}
                   onChange={e => setPumpForm({ ...pumpForm, location: e.target.value })}
-                  placeholder="e.g. Chak 46/NB Sargodha-Faisalabad Road" 
+                  placeholder="e.g. Chak 46/NB" 
                   required 
                 />
               </div>
@@ -533,7 +530,7 @@ export default function ProjectsDashboard() {
                 </div>
 
                 <div className="form-group">
-                  <label className="form-label">Date of Reg. of Lease Deed</label>
+                  <label className="form-label">Date of Registration of Lease Deed</label>
                   <input 
                     type="date" 
                     className="input-field" 
@@ -589,7 +586,7 @@ export default function ProjectsDashboard() {
                 </div>
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1.5rem' }}>
                 <div className="form-group">
                   <label className="form-label">Monthly Rent (Rs.) *</label>
                   <input 
@@ -613,17 +610,6 @@ export default function ProjectsDashboard() {
                     required 
                   />
                 </div>
-              </div>
-
-              <div className="form-group" style={{ marginBottom: '1.5rem' }}>
-                <label className="form-label">Lessee / Operating Company Name</label>
-                <input 
-                  type="text" 
-                  className="input-field" 
-                  value={pumpForm.lessee_name}
-                  onChange={e => setPumpForm({ ...pumpForm, lessee_name: e.target.value })}
-                  placeholder="e.g. Pakistan State Oil (PSO) or Shell Pakistan" 
-                />
               </div>
 
               <div className="modal-footer">

@@ -75,9 +75,8 @@ const PetrolPumpReceiptPrint = ({ printData, innerRef, pump, appSettings }) => {
           <div><strong>Date:</strong> {new Date(printData.date).toLocaleDateString()}</div>
         </div>
 
-        {/* Lessee & Property Details */}
+        {/* Property Details */}
         <div style={{ marginBottom: '20px', padding: '15px', backgroundColor: '#f9f9f9', border: '1px solid #ddd', borderRadius: '4px' }}>
-          <p style={{ margin: '4px 0' }}><strong>Lessee / Company:</strong> {printData.lesseeName || pump.lessee_name || 'N/A'}</p>
           <p style={{ margin: '4px 0' }}><strong>Site Name:</strong> {pump.name}</p>
           <p style={{ margin: '4px 0' }}><strong>Site Location:</strong> {pump.location || 'N/A'}</p>
           <p style={{ margin: '4px 0' }}><strong>Total Area:</strong> {pump.total_area || 'N/A'}</p>
@@ -193,8 +192,7 @@ export default function PetrolPumpDetail({ currentUser }) {
     lease_end_date: '',
     grace_period: '',
     monthly_rent: '',
-    annual_increase_pct: '',
-    lessee_name: ''
+    annual_increase_pct: ''
   });
 
   useEffect(() => {
@@ -209,8 +207,7 @@ export default function PetrolPumpDetail({ currentUser }) {
         lease_end_date: pump.lease_end_date || '',
         grace_period: pump.grace_period || '',
         monthly_rent: pump.monthly_rent || '',
-        annual_increase_pct: pump.annual_increase_pct || '',
-        lessee_name: pump.lessee_name || ''
+        annual_increase_pct: pump.annual_increase_pct || ''
       });
     }
   }, [pump]);
@@ -316,11 +313,7 @@ export default function PetrolPumpDetail({ currentUser }) {
       setIsPaymentModalOpen(false);
 
       // Trigger automatic receipt print
-      const pData = {
-        ...newPayment,
-        lesseeName: pump.lessee_name
-      };
-      setPrintData(pData);
+      setPrintData(newPayment);
       setTimeout(() => {
         handlePrint();
       }, 300);
@@ -343,10 +336,7 @@ export default function PetrolPumpDetail({ currentUser }) {
 
   // Print existing receipt
   const handlePrintExistingReceipt = (payment) => {
-    setPrintData({
-      ...payment,
-      lesseeName: pump.lessee_name
-    });
+    setPrintData(payment);
     setTimeout(() => {
       handlePrint();
     }, 200);
@@ -454,7 +444,6 @@ export default function PetrolPumpDetail({ currentUser }) {
               <p style={{ color: 'var(--color-text-muted)', margin: '0.4rem 0 0 0', display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
                 {pump.location && <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}><MapPin size={14} /> {pump.location}</span>}
                 {pump.total_area && <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>• <Maximize size={14} /> Area: {pump.total_area}</span>}
-                {pump.lessee_name && <span>• Lessee: <strong>{pump.lessee_name}</strong></span>}
               </p>
             </div>
           </div>
@@ -592,11 +581,6 @@ export default function PetrolPumpDetail({ currentUser }) {
             <div style={{ padding: '1rem', backgroundColor: 'var(--color-bg-app)', borderRadius: '8px' }}>
               <span style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)', textTransform: 'uppercase' }}>Annual Increase Rate</span>
               <p style={{ fontSize: '1.1rem', fontWeight: 600, margin: '0.25rem 0 0 0' }}>{pump.annual_increase_pct || 0}% per year</p>
-            </div>
-
-            <div style={{ padding: '1rem', backgroundColor: 'var(--color-bg-app)', borderRadius: '8px' }}>
-              <span style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)', textTransform: 'uppercase' }}>Lessee / Operating Company</span>
-              <p style={{ fontSize: '1.1rem', fontWeight: 600, margin: '0.25rem 0 0 0' }}>{pump.lessee_name || 'N/A'}</p>
             </div>
           </div>
         </div>
@@ -910,7 +894,7 @@ export default function PetrolPumpDetail({ currentUser }) {
             </div>
             <form onSubmit={handleSaveEdit}>
               <div className="form-group" style={{ marginBottom: '1rem' }}>
-                <label className="form-label">Site / Petrol Pump Name *</label>
+                <label className="form-label">Site Name *</label>
                 <input 
                   type="text" 
                   className="input-field" 
@@ -1000,7 +984,7 @@ export default function PetrolPumpDetail({ currentUser }) {
                 </div>
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1.5rem' }}>
                 <div className="form-group">
                   <label className="form-label">Starting Monthly Rent (Rs.)</label>
                   <input 
@@ -1022,17 +1006,6 @@ export default function PetrolPumpDetail({ currentUser }) {
                     placeholder="e.g. 10" 
                   />
                 </div>
-              </div>
-
-              <div className="form-group" style={{ marginBottom: '1.5rem' }}>
-                <label className="form-label">Lessee / Company Name</label>
-                <input 
-                  type="text" 
-                  className="input-field" 
-                  value={editForm.lessee_name}
-                  onChange={e => setEditForm({ ...editForm, lessee_name: e.target.value })}
-                  placeholder="e.g. Pakistan State Oil (PSO)" 
-                />
               </div>
 
               <div className="modal-footer">
