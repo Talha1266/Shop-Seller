@@ -7,6 +7,7 @@ import {
   Building2, Fuel, Store, Users, DollarSign, ChevronRight, 
   Plus, X, Trash2, MapPin, Maximize, Calendar, Clock, TrendingUp 
 } from 'lucide-react';
+import { getPumpIntervalYears, cleanGracePeriod } from './PetrolPumpDetail';
 
 export default function ProjectsDashboard() {
   const navigate = useNavigate();
@@ -142,7 +143,12 @@ export default function ProjectsDashboard() {
         pumpId = await db.petrol_pumps.add(newPump);
       } catch (addErr) {
         if (addErr.message && (addErr.message.includes('increase_interval_years') || addErr.code === '42703')) {
-          const fallbackPump = { ...newPump };
+          const rawGrace = cleanGracePeriod(pumpForm.grace_period);
+          const intervalVal = Number(pumpForm.increase_interval_years) || 1;
+          const fallbackPump = { 
+            ...newPump,
+            grace_period: rawGrace ? `${rawGrace} [Interval: ${intervalVal}]` : `[Interval: ${intervalVal}]`
+          };
           delete fallbackPump.increase_interval_years;
           pumpId = await db.petrol_pumps.add(fallbackPump);
         } else {
@@ -441,7 +447,7 @@ export default function ProjectsDashboard() {
                           Rent Escalation
                         </p>
                         <p style={{ fontSize: '1.15rem', fontWeight: 700, margin: 0 }}>
-                          +{pump.annual_increase_pct || 0}% / {Number(pump.increase_interval_years || 1) > 1 ? `${pump.increase_interval_years} yrs` : 'yr'}
+                          +{pump.annual_increase_pct || 0}% / {getPumpIntervalYears(pump) > 1 ? `${getPumpIntervalYears(pump)} yrs` : 'yr'}
                         </p>
                       </div>
                     </div>

@@ -28,6 +28,30 @@ export const formatDate = (d) => {
   }
 };
 
+// Helper to reliably extract rent escalation interval in years (from column or metadata fallback)
+export const getPumpIntervalYears = (pump) => {
+  if (!pump) return 1;
+  if (pump.increase_interval_years && !isNaN(Number(pump.increase_interval_years))) {
+    const val = Number(pump.increase_interval_years);
+    if (val > 0) return val;
+  }
+  if (pump.grace_period && pump.grace_period.includes('[Interval:')) {
+    const match = pump.grace_period.match(/\[Interval:\s*(\d+)\]/);
+    if (match) return Number(match[1]);
+  }
+  if (pump.total_lease_period && pump.total_lease_period.includes('[Interval:')) {
+    const match = pump.total_lease_period.match(/\[Interval:\s*(\d+)\]/);
+    if (match) return Number(match[1]);
+  }
+  return 1;
+};
+
+// Helper to strip out internal [Interval: X] metadata from grace_period for clean UI display
+export const cleanGracePeriod = (gp) => {
+  if (!gp) return '';
+  return gp.replace(/\[Interval:\s*\d+\]/g, '').trim();
+};
+
 // Printable Receipt Component for Petrol Pump
 const PetrolPumpReceiptPrint = ({ printData, innerRef, pump, appSettings }) => {
   const [signatureUrl, setSignatureUrl] = useState('');
@@ -299,10 +323,10 @@ export default function PetrolPumpDetail({ currentUser }) {
         total_lease_period: pump.total_lease_period || '',
         lease_start_date: pump.lease_start_date || '',
         lease_end_date: pump.lease_end_date || '',
-        grace_period: pump.grace_period || '',
+        grace_period: cleanGracePeriod(pump.grace_period),
         monthly_rent: pump.monthly_rent || '',
         annual_increase_pct: pump.annual_increase_pct || '',
-        increase_interval_years: pump.increase_interval_years || 1
+        increase_interval_years: getPumpIntervalYears(pump)
       });
     }
   }, [pump]);
@@ -313,7 +337,7 @@ export default function PetrolPumpDetail({ currentUser }) {
     
     const baseRent = Number(pump.monthly_rent) || 0;
     const increasePct = Number(pump.annual_increase_pct) || 0;
-    const intervalYears = Math.max(1, Number(pump.increase_interval_years) || 1);
+    const intervalYears = getPumpIntervalYears(pump);
     const startDate = pump.lease_start_date ? new Date(pump.lease_start_date) : new Date();
     
     // Determine total years
@@ -601,6 +625,9 @@ export default function PetrolPumpDetail({ currentUser }) {
     e.preventDefault();
     if (!pump) return;
 
+    const targetIntervalYears = Math.max(1, Number(editForm.increase_interval_years) || 1);
+    const rawGracePeriod = cleanGracePeriod(editForm.grace_period);
+
     const updateData = {
       name: editForm.name?.trim(),
       location: editForm.location?.trim() || null,
@@ -609,10 +636,10 @@ export default function PetrolPumpDetail({ currentUser }) {
       total_lease_period: editForm.total_lease_period?.trim() || null,
       lease_start_date: editForm.lease_start_date ? editForm.lease_start_date : null,
       lease_end_date: editForm.lease_end_date ? editForm.lease_end_date : null,
-      grace_period: editForm.grace_period?.trim() || null,
+      grace_period: rawGracePeriod || null,
       monthly_rent: Number(editForm.monthly_rent) || 0,
       annual_increase_pct: Number(editForm.annual_increase_pct) || 0,
-      increase_interval_years: Number(editForm.increase_interval_years) || 1,
+      increase_interval_years: targetIntervalYears,
       updated_at: new Date().toISOString()
     };
 
@@ -621,7 +648,14 @@ export default function PetrolPumpDetail({ currentUser }) {
         await db.petrol_pumps.update(pump.id, updateData);
       } catch (updErr) {
         if (updErr.message && (updErr.message.includes('increase_interval_years') || updErr.code === '42703')) {
-          const fallbackData = { ...updateData };
+          // If the column does not exist in DB yet, preserve the interval in metadata so it is never lost!
+          const fallbackGrace = rawGracePeriod 
+            ? `${rawGracePeriod} [Interval: ${targetIntervalYears}]` 
+            : `[Interval: ${targetIntervalYears}]`;
+          const fallbackData = { 
+            ...updateData,
+            grace_period: fallbackGrace
+          };
           delete fallbackData.increase_interval_years;
           await db.petrol_pumps.update(pump.id, fallbackData);
         } else {
@@ -744,7 +778,7 @@ export default function PetrolPumpDetail({ currentUser }) {
             +{pump.annual_increase_pct || 0}%
           </h2>
           <span style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>
-            Every {pump.increase_interval_years || 1} year{Number(pump.increase_interval_years || 1) > 1 ? 's' : ''}
+            Every {getPumpIntervalYears(pump)} year{getPumpIntervalYears(pump) > 1 ? 's' : ''}
           </span>
         </div>
 
@@ -765,7 +799,7 @@ export default function PetrolPumpDetail({ currentUser }) {
             <Calendar size={16} /> Grace Period
           </p>
           <h2 style={{ fontSize: '1.6rem', fontWeight: 700, margin: 0 }}>
-            {pump.grace_period || 'None'}
+            {cleanGracePeriod(pump.grace_period) || 'None'}
           </h2>
           <span style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>
             Deed Reg: {pump.lease_deed_reg_date || 'N/A'}
@@ -846,7 +880,7 @@ export default function PetrolPumpDetail({ currentUser }) {
 
             <div style={{ padding: '1rem', backgroundColor: 'var(--color-bg-app)', borderRadius: '8px' }}>
               <span style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)', textTransform: 'uppercase' }}>Grace Period</span>
-              <p style={{ fontSize: '1.1rem', fontWeight: 600, margin: '0.25rem 0 0 0' }}>{pump.grace_period || 'None'}</p>
+              <p style={{ fontSize: '1.1rem', fontWeight: 600, margin: '0.25rem 0 0 0' }}>{cleanGracePeriod(pump.grace_period) || 'None'}</p>
             </div>
 
             <div style={{ padding: '1rem', backgroundColor: 'var(--color-bg-app)', borderRadius: '8px' }}>
@@ -857,7 +891,7 @@ export default function PetrolPumpDetail({ currentUser }) {
             <div style={{ padding: '1rem', backgroundColor: 'var(--color-bg-app)', borderRadius: '8px' }}>
               <span style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)', textTransform: 'uppercase' }}>Rent Increase Terms</span>
               <p style={{ fontSize: '1.1rem', fontWeight: 600, margin: '0.25rem 0 0 0' }}>
-                +{pump.annual_increase_pct || 0}% after every {pump.increase_interval_years || 1} year{Number(pump.increase_interval_years || 1) > 1 ? 's' : ''}
+                +{pump.annual_increase_pct || 0}% after every {getPumpIntervalYears(pump)} year{getPumpIntervalYears(pump) > 1 ? 's' : ''}
               </p>
             </div>
           </div>
@@ -871,7 +905,7 @@ export default function PetrolPumpDetail({ currentUser }) {
             <div>
               <h2 style={{ fontSize: '1.25rem', fontWeight: 700, margin: 0 }}>Year-by-Year Rent Escalation Schedule</h2>
               <p style={{ color: 'var(--color-text-muted)', margin: '0.25rem 0 0 0', fontSize: '0.875rem' }}>
-                Escalates by +{pump.annual_increase_pct || 0}% every {pump.increase_interval_years || 1} year{Number(pump.increase_interval_years || 1) > 1 ? 's' : ''} as specified in the lease agreement.
+                Escalates by +{pump.annual_increase_pct || 0}% every {getPumpIntervalYears(pump)} year{getPumpIntervalYears(pump) > 1 ? 's' : ''} as specified in the lease agreement.
               </p>
             </div>
             <span className="badge" style={{ backgroundColor: 'rgba(16, 185, 129, 0.1)', color: '#10b981', padding: '0.4rem 0.8rem', borderRadius: '8px', fontSize: '0.85rem' }}>
