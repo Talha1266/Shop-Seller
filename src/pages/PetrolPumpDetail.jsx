@@ -6,7 +6,7 @@ import { useSupabase } from '../hooks/useSupabase';
 import { 
   Fuel, ArrowLeft, Calendar, MapPin, Maximize, FileText, 
   TrendingUp, DollarSign, CheckCircle2, Clock, Printer, 
-  Plus, Trash2, Edit3, X, AlertCircle
+  Plus, Trash2, Edit3, X, AlertCircle, Paperclip, Download
 } from 'lucide-react';
 import { useReactToPrint } from 'react-to-print';
 
@@ -188,6 +188,72 @@ export default function PetrolPumpDetail({ currentUser }) {
   const [paymentMethod, setPaymentMethod] = useState('Bank Transfer');
   const [paymentNotes, setPaymentNotes] = useState('');
   const [printData, setPrintData] = useState(null);
+  const [attachmentFile, setAttachmentFile] = useState(null);
+  const [attachmentPreview, setAttachmentPreview] = useState(null);
+  const [isUploadingAttachment, setIsUploadingAttachment] = useState(false);
+  const [viewingAttachmentUrl, setViewingAttachmentUrl] = useState(null);
+  const [viewingAttachmentTitle, setViewingAttachmentTitle] = useState('');
+
+  // Helper to extract attachment path from payment
+  const getAttachmentPath = (payment) => {
+    if (!payment) return null;
+    if (payment.attachment_url) return payment.attachment_url;
+    if (payment.notes && payment.notes.includes('[Attachment: ')) {
+      const match = payment.notes.match(/\[Attachment:\s*([^\]]+)\]/);
+      if (match) return match[1].trim();
+    }
+    return null;
+  };
+
+  const handleAttachmentChange = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      if (file.size > 10 * 1024 * 1024) {
+        alert('File size exceeds 10MB limit. Please choose a smaller image.');
+        e.target.value = '';
+        return;
+      }
+      setAttachmentFile(file);
+      if (file.type.startsWith('image/')) {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          setAttachmentPreview(reader.result);
+        };
+        reader.readAsDataURL(file);
+      } else {
+        setAttachmentPreview(null);
+      }
+    }
+  };
+
+  const handleRemoveAttachment = () => {
+    setAttachmentFile(null);
+    setAttachmentPreview(null);
+  };
+
+  const handleOpenAttachmentViewer = async (payment) => {
+    const path = getAttachmentPath(payment);
+    if (!path) return;
+
+    try {
+      const { data, error } = await supabase.storage
+        .from('tenant-documents')
+        .createSignedUrl(path, 3600);
+
+      if (error || !data?.signedUrl) {
+        const { data: pubData } = supabase.storage
+          .from('tenant-documents')
+          .getPublicUrl(path);
+        setViewingAttachmentUrl(pubData?.publicUrl || path);
+      } else {
+        setViewingAttachmentUrl(data.signedUrl);
+      }
+      setViewingAttachmentTitle(`Attachment - Receipt #${payment.receipt_no} (${payment.payment_method})`);
+    } catch (err) {
+      console.error(err);
+      alert('Failed to load attachment: ' + err.message);
+    }
+  };
 
   const printRef = useRef(null);
   const handlePrint = useReactToPrint({ contentRef: printRef });
@@ -383,6 +449,9 @@ export default function PetrolPumpDetail({ currentUser }) {
     setPaymentAmount(currentExpectedMonthlyRent);
     setPaymentDate(new Date().toISOString().split('T')[0]);
     setPaymentNotes('');
+    setAttachmentFile(null);
+    setAttachmentPreview(null);
+    setIsUploadingAttachment(false);
     setIsPaymentModalOpen(true);
   };
 
@@ -418,6 +487,30 @@ export default function PetrolPumpDetail({ currentUser }) {
     if (!pump) return;
 
     try {
+      let uploadedPath = null;
+      if (attachmentFile) {
+        setIsUploadingAttachment(true);
+        const fileExt = attachmentFile.name.split('.').pop();
+        const cleanFileName = `cheque_${pump.id}_${Date.now()}.${fileExt}`;
+        const filePath = `petrol_pumps/cheques/${cleanFileName}`;
+
+        try {
+          const { error: uploadError } = await supabase.storage
+            .from('tenant-documents')
+            .upload(filePath, attachmentFile, { upsert: true });
+
+          if (!uploadError) {
+            uploadedPath = filePath;
+          } else {
+            console.warn('Storage upload error, continuing:', uploadError);
+          }
+        } catch (uploadErr) {
+          console.warn('Failed to upload file to storage:', uploadErr);
+        } finally {
+          setIsUploadingAttachment(false);
+        }
+      }
+
       const receiptNo = `PP-REC-${Date.now().toString().slice(-6)}`;
       const durationLabel = (periodFrom && periodTo)
         ? `${periodFrom} to ${periodTo}`
@@ -432,16 +525,17 @@ export default function PetrolPumpDetail({ currentUser }) {
         date: paymentDate,
         receipt_no: receiptNo,
         payment_method: paymentMethod,
-        notes: paymentNotes,
+        notes: uploadedPath ? `[Attachment: ${uploadedPath}] ${paymentNotes}` : paymentNotes,
         period_from: periodFrom,
-        period_to: periodTo
+        period_to: periodTo,
+        attachment_url: uploadedPath
       };
 
       try {
         await db.petrol_pump_rent_collections.add(newPayment);
       } catch (insertErr) {
-        // Fallback gracefully if period_from/to columns haven't been added yet in DB
-        if (insertErr.message && (insertErr.message.includes('period_from') || insertErr.message.includes('period_to') || insertErr.code === '42703')) {
+        // Fallback gracefully if attachment_url or period_from/to columns haven't been added yet in DB
+        if (insertErr.message && (insertErr.message.includes('attachment_url') || insertErr.message.includes('period_from') || insertErr.message.includes('period_to') || insertErr.code === '42703')) {
           const fallbackPayment = {
             petrol_pump_id: pump.id,
             month: durationLabel,
@@ -451,13 +545,16 @@ export default function PetrolPumpDetail({ currentUser }) {
             date: paymentDate,
             receipt_no: receiptNo,
             payment_method: paymentMethod,
-            notes: `Duration: ${periodFrom} to ${periodTo}. ${paymentNotes || ''}`
+            notes: `${uploadedPath ? `[Attachment: ${uploadedPath}] ` : ''}Duration: ${periodFrom} to ${periodTo}. ${paymentNotes || ''}`
           };
           await db.petrol_pump_rent_collections.add(fallbackPayment);
         } else {
           throw insertErr;
         }
       }
+
+      setAttachmentFile(null);
+      setAttachmentPreview(null);
 
       setIsPaymentModalOpen(false);
 
@@ -929,7 +1026,31 @@ export default function PetrolPumpDetail({ currentUser }) {
                           <td style={{ padding: '0.75rem', textAlign: 'right', fontWeight: 600 }}>
                             Rs. {Number(col.amount_paid).toLocaleString()}
                           </td>
-                          <td style={{ padding: '0.75rem' }}>{col.payment_method || 'Bank Transfer'}</td>
+                          <td style={{ padding: '0.75rem' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                              <span>{col.payment_method || 'Bank Transfer'}</span>
+                              {getAttachmentPath(col) && (
+                                <button 
+                                  type="button"
+                                  className="btn btn-secondary btn-sm"
+                                  onClick={() => handleOpenAttachmentViewer(col)}
+                                  style={{ 
+                                    padding: '0.2rem 0.5rem', 
+                                    fontSize: '0.75rem', 
+                                    display: 'inline-flex', 
+                                    alignItems: 'center', 
+                                    gap: '0.3rem', 
+                                    color: 'var(--color-primary)', 
+                                    borderColor: 'var(--color-primary)',
+                                    backgroundColor: 'rgba(59, 130, 246, 0.05)'
+                                  }}
+                                  title="View Attached Picture of Cheque / Receipt"
+                                >
+                                  <Paperclip size={12} /> View Cheque
+                                </button>
+                              )}
+                            </div>
+                          </td>
                           <td style={{ padding: '0.75rem', textAlign: 'center' }}>
                             <div style={{ display: 'flex', justifyContent: 'center', gap: '0.5rem' }}>
                               <button 
@@ -1084,6 +1205,53 @@ export default function PetrolPumpDetail({ currentUser }) {
                 </select>
               </div>
 
+              {/* Optional Cheque / Receipt Picture Attachment */}
+              {(paymentMethod === 'Cheque' || paymentMethod === 'Online' || paymentMethod === 'Bank Transfer') && (
+                <div style={{ 
+                  marginBottom: '1.25rem', 
+                  padding: '0.85rem', 
+                  borderRadius: '8px', 
+                  border: '1px dashed var(--color-primary)', 
+                  backgroundColor: 'rgba(59, 130, 246, 0.04)' 
+                }}>
+                  <label className="form-label" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.4rem', fontWeight: 600 }}>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                      <Paperclip size={16} color="var(--color-primary)" />
+                      {paymentMethod === 'Cheque' ? 'Attach Picture of Cheque (Optional)' : 'Attach Picture of Receipt / Slip (Optional)'}
+                    </span>
+                    <span style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>JPG, PNG up to 10MB</span>
+                  </label>
+                  <input 
+                    type="file" 
+                    accept="image/*,.pdf" 
+                    className="input-field" 
+                    onChange={handleAttachmentChange}
+                    style={{ fontSize: '0.85rem' }} 
+                  />
+                  {attachmentPreview && (
+                    <div style={{ marginTop: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                      <img 
+                        src={attachmentPreview} 
+                        alt="Cheque Preview" 
+                        style={{ maxHeight: '80px', maxWidth: '140px', objectFit: 'contain', borderRadius: '6px', border: '1px solid var(--color-border)', backgroundColor: '#fff' }} 
+                      />
+                      <div>
+                        <span style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)', display: 'block', maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {attachmentFile?.name}
+                        </span>
+                        <button 
+                          type="button" 
+                          onClick={handleRemoveAttachment}
+                          style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '0.75rem', padding: 0, textDecoration: 'underline' }}
+                        >
+                          Remove picture
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
               <div className="form-group" style={{ marginBottom: '1.5rem' }}>
                 <label className="form-label">Notes / Transaction Reference (Optional)</label>
                 <input 
@@ -1097,9 +1265,47 @@ export default function PetrolPumpDetail({ currentUser }) {
 
               <div className="modal-footer">
                 <button type="button" className="btn btn-secondary" onClick={() => setIsPaymentModalOpen(false)}>Cancel</button>
-                <button type="submit" className="btn btn-primary">Save & Print Receipt</button>
+                <button type="submit" className="btn btn-primary" disabled={isUploadingAttachment}>
+                  {isUploadingAttachment ? 'Uploading Photo...' : 'Save & Print Receipt'}
+                </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Attachment Viewer Modal */}
+      {viewingAttachmentUrl && (
+        <div className="modal-overlay" onClick={() => setViewingAttachmentUrl(null)}>
+          <div className="modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: '650px', textAlign: 'center' }}>
+            <div className="modal-header">
+              <h2 className="modal-title" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '1.1rem' }}>
+                <Paperclip size={18} /> {viewingAttachmentTitle || 'Payment Attachment'}
+              </h2>
+              <button className="icon-btn" onClick={() => setViewingAttachmentUrl(null)}><X size={20} /></button>
+            </div>
+            <div style={{ padding: '1rem', backgroundColor: '#f3f4f6', borderRadius: '8px', margin: '1rem 0', display: 'flex', justifyContent: 'center' }}>
+              <img 
+                src={viewingAttachmentUrl} 
+                alt="Cheque / Receipt" 
+                style={{ maxWidth: '100%', maxHeight: '65vh', objectFit: 'contain', borderRadius: '6px', boxShadow: '0 4px 6px rgba(0,0,0,0.1)' }} 
+              />
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem' }}>
+              <a 
+                href={viewingAttachmentUrl} 
+                target="_blank" 
+                rel="noreferrer" 
+                download
+                className="btn btn-secondary btn-sm"
+                style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}
+              >
+                <Download size={14} /> Open Full Size / Download
+              </a>
+              <button className="btn btn-primary btn-sm" onClick={() => setViewingAttachmentUrl(null)}>
+                Close
+              </button>
+            </div>
           </div>
         </div>
       )}
