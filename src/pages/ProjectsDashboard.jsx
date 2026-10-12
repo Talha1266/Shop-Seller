@@ -32,7 +32,8 @@ export default function ProjectsDashboard() {
     lease_end_date: '',
     grace_period: '',
     monthly_rent: '',
-    annual_increase_pct: ''
+    annual_increase_pct: '',
+    increase_interval_years: '3'
   });
 
   // Since activeProject is null here, useSupabase fetches ALL data across all projects
@@ -132,10 +133,23 @@ export default function ProjectsDashboard() {
         lease_end_date: pumpForm.lease_end_date || null,
         grace_period: pumpForm.grace_period.trim(),
         monthly_rent: Number(pumpForm.monthly_rent) || 0,
-        annual_increase_pct: Number(pumpForm.annual_increase_pct) || 0
+        annual_increase_pct: Number(pumpForm.annual_increase_pct) || 0,
+        increase_interval_years: Number(pumpForm.increase_interval_years) || 1
       };
 
-      const pumpId = await db.petrol_pumps.add(newPump);
+      let pumpId;
+      try {
+        pumpId = await db.petrol_pumps.add(newPump);
+      } catch (addErr) {
+        if (addErr.message && (addErr.message.includes('increase_interval_years') || addErr.code === '42703')) {
+          const fallbackPump = { ...newPump };
+          delete fallbackPump.increase_interval_years;
+          pumpId = await db.petrol_pumps.add(fallbackPump);
+        } else {
+          throw addErr;
+        }
+      }
+
       setIsCreatingPump(false);
       setPumpForm({
         name: '',
@@ -147,7 +161,8 @@ export default function ProjectsDashboard() {
         lease_end_date: '',
         grace_period: '',
         monthly_rent: '',
-        annual_increase_pct: ''
+        annual_increase_pct: '',
+        increase_interval_years: '3'
       });
 
       if (pumpId) {
@@ -423,10 +438,10 @@ export default function ProjectsDashboard() {
                       </div>
                       <div>
                         <p style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', textTransform: 'uppercase', margin: '0 0 0.25rem 0' }}>
-                          Annual Increase
+                          Rent Escalation
                         </p>
                         <p style={{ fontSize: '1.15rem', fontWeight: 700, margin: 0 }}>
-                          +{pump.annual_increase_pct || 0}% / yr
+                          +{pump.annual_increase_pct || 0}% / {Number(pump.increase_interval_years || 1) > 1 ? `${pump.increase_interval_years} yrs` : 'yr'}
                         </p>
                       </div>
                     </div>
@@ -589,9 +604,9 @@ export default function ProjectsDashboard() {
                 </div>
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1.5rem' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr 1fr', gap: '1rem', marginBottom: '0.75rem' }}>
                 <div className="form-group">
-                  <label className="form-label">Monthly Rent (Rs.) *</label>
+                  <label className="form-label">Starting Monthly Rent (Rs.) *</label>
                   <input 
                     type="number" 
                     className="input-field" 
@@ -603,7 +618,7 @@ export default function ProjectsDashboard() {
                 </div>
 
                 <div className="form-group">
-                  <label className="form-label">Annual Increase (%) *</label>
+                  <label className="form-label">Increase Rate (%) *</label>
                   <input 
                     type="number" 
                     className="input-field" 
@@ -613,7 +628,24 @@ export default function ProjectsDashboard() {
                     required 
                   />
                 </div>
+
+                <div className="form-group">
+                  <label className="form-label">Increase Every (Years) *</label>
+                  <input 
+                    type="number" 
+                    className="input-field" 
+                    min="1"
+                    step="1"
+                    value={pumpForm.increase_interval_years}
+                    onChange={e => setPumpForm({ ...pumpForm, increase_interval_years: e.target.value })}
+                    placeholder="e.g. 3" 
+                    required 
+                  />
+                </div>
               </div>
+              <p style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', margin: '0 0 1.5rem 0' }}>
+                E.g. 10% increase every 3 years according to lease agreement.
+              </p>
 
               <div className="modal-footer">
                 <button type="button" className="btn btn-secondary" onClick={() => setIsCreatingPump(false)}>Cancel</button>

@@ -285,7 +285,8 @@ export default function PetrolPumpDetail({ currentUser }) {
     lease_end_date: '',
     grace_period: '',
     monthly_rent: '',
-    annual_increase_pct: ''
+    annual_increase_pct: '',
+    increase_interval_years: '1'
   });
 
   useEffect(() => {
@@ -300,17 +301,19 @@ export default function PetrolPumpDetail({ currentUser }) {
         lease_end_date: pump.lease_end_date || '',
         grace_period: pump.grace_period || '',
         monthly_rent: pump.monthly_rent || '',
-        annual_increase_pct: pump.annual_increase_pct || ''
+        annual_increase_pct: pump.annual_increase_pct || '',
+        increase_interval_years: pump.increase_interval_years || 1
       });
     }
   }, [pump]);
 
-  // Calculate year-by-year escalation schedule
+  // Calculate year-by-year escalation schedule based on lease agreement increase frequency
   const escalationSchedule = useMemo(() => {
     if (!pump) return [];
     
     const baseRent = Number(pump.monthly_rent) || 0;
-    const annualIncreasePct = Number(pump.annual_increase_pct) || 0;
+    const increasePct = Number(pump.annual_increase_pct) || 0;
+    const intervalYears = Math.max(1, Number(pump.increase_interval_years) || 1);
     const startDate = pump.lease_start_date ? new Date(pump.lease_start_date) : new Date();
     
     // Determine total years
@@ -336,12 +339,16 @@ export default function PetrolPumpDetail({ currentUser }) {
       yearEnd.setFullYear(startDate.getFullYear() + y);
       yearEnd.setDate(yearEnd.getDate() - 1);
 
-      // Rent compounding annually
-      const monthlyRent = Math.round(baseRent * Math.pow(1 + (annualIncreasePct / 100), y - 1));
+      // Rent increases after every `intervalYears`
+      const escalationSteps = Math.floor((y - 1) / intervalYears);
+      const monthlyRent = Math.round(baseRent * Math.pow(1 + (increasePct / 100), escalationSteps));
       const annualRent = monthlyRent * 12;
 
       const isCurrentYear = today >= yearStart && today <= yearEnd;
       const isPastYear = today > yearEnd;
+
+      // Escalation takes effect on exact boundary years (e.g. Year 4, Year 7 for 3-yr interval)
+      const isEscalationYear = y > 1 && ((y - 1) % intervalYears === 0);
 
       schedule.push({
         yearNumber: y,
@@ -349,7 +356,8 @@ export default function PetrolPumpDetail({ currentUser }) {
         endDate: yearEnd.toISOString().split('T')[0],
         monthlyRent,
         annualRent,
-        increaseRate: y === 1 ? 0 : annualIncreasePct,
+        increaseRate: y === 1 ? 0 : (isEscalationYear ? increasePct : 0),
+        isEscalationYear,
         isCurrentYear,
         isPastYear
       });
@@ -593,13 +601,26 @@ export default function PetrolPumpDetail({ currentUser }) {
     e.preventDefault();
     if (!pump) return;
 
+    const updateData = {
+      ...editForm,
+      monthly_rent: Number(editForm.monthly_rent) || 0,
+      annual_increase_pct: Number(editForm.annual_increase_pct) || 0,
+      increase_interval_years: Number(editForm.increase_interval_years) || 1,
+      updated_at: new Date().toISOString()
+    };
+
     try {
-      await db.petrol_pumps.update(pump.id, {
-        ...editForm,
-        monthly_rent: Number(editForm.monthly_rent) || 0,
-        annual_increase_pct: Number(editForm.annual_increase_pct) || 0,
-        updated_at: new Date().toISOString()
-      });
+      try {
+        await db.petrol_pumps.update(pump.id, updateData);
+      } catch (updErr) {
+        if (updErr.message && (updErr.message.includes('increase_interval_years') || updErr.code === '42703')) {
+          const fallbackData = { ...updateData };
+          delete fallbackData.increase_interval_years;
+          await db.petrol_pumps.update(pump.id, fallbackData);
+        } else {
+          throw updErr;
+        }
+      }
       setIsEditModalOpen(false);
       alert('Petrol pump updated successfully!');
     } catch (err) {
@@ -710,12 +731,14 @@ export default function PetrolPumpDetail({ currentUser }) {
 
         <div className="card">
           <p style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)', margin: '0 0 0.5rem 0', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-            <TrendingUp size={16} /> Annual Escalation
+            <TrendingUp size={16} /> Rent Escalation
           </p>
           <h2 style={{ fontSize: '1.6rem', fontWeight: 700, margin: 0 }}>
-            {pump.annual_increase_pct || 0}%
+            +{pump.annual_increase_pct || 0}%
           </h2>
-          <span style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>Compounds yearly</span>
+          <span style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>
+            Every {pump.increase_interval_years || 1} year{Number(pump.increase_interval_years || 1) > 1 ? 's' : ''}
+          </span>
         </div>
 
         <div className="card">
@@ -825,8 +848,10 @@ export default function PetrolPumpDetail({ currentUser }) {
             </div>
 
             <div style={{ padding: '1rem', backgroundColor: 'var(--color-bg-app)', borderRadius: '8px' }}>
-              <span style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)', textTransform: 'uppercase' }}>Annual Increase Rate</span>
-              <p style={{ fontSize: '1.1rem', fontWeight: 600, margin: '0.25rem 0 0 0' }}>{pump.annual_increase_pct || 0}% per year</p>
+              <span style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)', textTransform: 'uppercase' }}>Rent Increase Terms</span>
+              <p style={{ fontSize: '1.1rem', fontWeight: 600, margin: '0.25rem 0 0 0' }}>
+                +{pump.annual_increase_pct || 0}% after every {pump.increase_interval_years || 1} year{Number(pump.increase_interval_years || 1) > 1 ? 's' : ''}
+              </p>
             </div>
           </div>
         </div>
@@ -839,7 +864,7 @@ export default function PetrolPumpDetail({ currentUser }) {
             <div>
               <h2 style={{ fontSize: '1.25rem', fontWeight: 700, margin: 0 }}>Year-by-Year Rent Escalation Schedule</h2>
               <p style={{ color: 'var(--color-text-muted)', margin: '0.25rem 0 0 0', fontSize: '0.875rem' }}>
-                Automatically calculated compounding at {pump.annual_increase_pct || 0}% annual increase.
+                Escalates by +{pump.annual_increase_pct || 0}% every {pump.increase_interval_years || 1} year{Number(pump.increase_interval_years || 1) > 1 ? 's' : ''} as specified in the lease agreement.
               </p>
             </div>
             <span className="badge" style={{ backgroundColor: 'rgba(16, 185, 129, 0.1)', color: '#10b981', padding: '0.4rem 0.8rem', borderRadius: '8px', fontSize: '0.85rem' }}>
@@ -882,7 +907,13 @@ export default function PetrolPumpDetail({ currentUser }) {
                       Rs. {item.annualRent.toLocaleString()}
                     </td>
                     <td style={{ padding: '0.75rem', textAlign: 'center' }}>
-                      {item.yearNumber === 1 ? 'Base' : `+${item.increaseRate}%`}
+                      {item.yearNumber === 1 ? (
+                        <span style={{ color: 'var(--color-text-muted)' }}>Base Rate</span>
+                      ) : item.isEscalationYear ? (
+                        <span style={{ color: '#10b981', fontWeight: 600 }}>+{item.increaseRate}% ↑</span>
+                      ) : (
+                        <span style={{ color: 'var(--color-text-muted)' }}>Same Rate</span>
+                      )}
                     </td>
                     <td style={{ padding: '0.75rem', textAlign: 'center' }}>
                       {item.isCurrentYear ? (
@@ -1410,7 +1441,7 @@ export default function PetrolPumpDetail({ currentUser }) {
                 </div>
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1.5rem' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr 1fr', gap: '1rem', marginBottom: '0.75rem' }}>
                 <div className="form-group">
                   <label className="form-label">Starting Monthly Rent (Rs.)</label>
                   <input 
@@ -1423,7 +1454,7 @@ export default function PetrolPumpDetail({ currentUser }) {
                 </div>
 
                 <div className="form-group">
-                  <label className="form-label">Annual Increase (%)</label>
+                  <label className="form-label">Increase Rate (%)</label>
                   <input 
                     type="number" 
                     className="input-field" 
@@ -1432,7 +1463,23 @@ export default function PetrolPumpDetail({ currentUser }) {
                     placeholder="e.g. 10" 
                   />
                 </div>
+
+                <div className="form-group">
+                  <label className="form-label">Increase Every (Years)</label>
+                  <input 
+                    type="number" 
+                    className="input-field" 
+                    min="1"
+                    step="1"
+                    value={editForm.increase_interval_years}
+                    onChange={e => setEditForm({ ...editForm, increase_interval_years: e.target.value })}
+                    placeholder="e.g. 3" 
+                  />
+                </div>
               </div>
+              <p style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', margin: '0 0 1.5rem 0' }}>
+                E.g. 10% increase every 3 years according to lease agreement.
+              </p>
 
               <div className="modal-footer">
                 <button type="button" className="btn btn-secondary" onClick={() => setIsEditModalOpen(false)}>Cancel</button>
