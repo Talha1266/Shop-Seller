@@ -602,7 +602,14 @@ export default function PetrolPumpDetail({ currentUser }) {
     if (!pump) return;
 
     const updateData = {
-      ...editForm,
+      name: editForm.name?.trim(),
+      location: editForm.location?.trim() || null,
+      total_area: editForm.total_area?.trim() || null,
+      lease_deed_reg_date: editForm.lease_deed_reg_date ? editForm.lease_deed_reg_date : null,
+      total_lease_period: editForm.total_lease_period?.trim() || null,
+      lease_start_date: editForm.lease_start_date ? editForm.lease_start_date : null,
+      lease_end_date: editForm.lease_end_date ? editForm.lease_end_date : null,
+      grace_period: editForm.grace_period?.trim() || null,
       monthly_rent: Number(editForm.monthly_rent) || 0,
       annual_increase_pct: Number(editForm.annual_increase_pct) || 0,
       increase_interval_years: Number(editForm.increase_interval_years) || 1,
