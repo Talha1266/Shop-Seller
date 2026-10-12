@@ -58,12 +58,14 @@ const PetrolPumpReceiptPrint = ({ printData, innerRef, pump, appSettings }) => {
           
           <div style={{ flex: 1, textAlign: 'center' }}>
             <h1 style={{ margin: '0 0 6px 0', fontSize: '22px', textTransform: 'uppercase', lineHeight: '1.2' }}>
-              {pump.name}
+              POLICE WELFARE PETROL PUMP
             </h1>
-            <p style={{ margin: '0 0 6px 0', fontSize: '13px', color: '#555' }}>
-              {pump.location || 'Petrol Pump Site'} {pump.total_area ? `(${pump.total_area})` : ''}
-            </p>
-            <h2 style={{ margin: 0, color: '#333', fontSize: '16px', letterSpacing: '1px' }}>
+            {pump.location && (
+              <p style={{ margin: '0 0 6px 0', fontSize: '14px', color: '#333', fontWeight: 600 }}>
+                {pump.location}
+              </p>
+            )}
+            <h2 style={{ margin: 0, color: '#444', fontSize: '16px', letterSpacing: '1px' }}>
               PETROL PUMP LEASE RENT RECEIPT
             </h2>
           </div>
@@ -79,7 +81,6 @@ const PetrolPumpReceiptPrint = ({ printData, innerRef, pump, appSettings }) => {
         <div style={{ marginBottom: '20px', padding: '15px', backgroundColor: '#f9f9f9', border: '1px solid #ddd', borderRadius: '4px' }}>
           <p style={{ margin: '4px 0' }}><strong>Site Name:</strong> {pump.name}</p>
           <p style={{ margin: '4px 0' }}><strong>Site Location:</strong> {pump.location || 'N/A'}</p>
-          <p style={{ margin: '4px 0' }}><strong>Total Area:</strong> {pump.total_area || 'N/A'}</p>
           <p style={{ margin: '4px 0' }}><strong>For Month:</strong> {printData.month}</p>
           {printData.payment_method && (
             <p style={{ margin: '4px 0' }}><strong>Payment Mode:</strong> {printData.payment_method}</p>
