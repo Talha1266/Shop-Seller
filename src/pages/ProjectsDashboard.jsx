@@ -431,8 +431,11 @@ export default function ProjectsDashboard() {
                       </div>
                     </div>
 
-                    <div style={{ marginTop: '1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.8rem', color: 'var(--color-text-muted)' }}>
+                    <div style={{ marginTop: '1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem', fontSize: '0.8rem', color: 'var(--color-text-muted)' }}>
                       <span>Lease: {pump.total_lease_period || 'N/A'}</span>
+                      {pump.lease_start_date && (
+                        <span>Period: {pump.lease_start_date} ~ {pump.lease_end_date || 'Ongoing'}</span>
+                      )}
                       <span className="badge" style={{ backgroundColor: '#10b981', color: '#fff', padding: '0.2rem 0.5rem', borderRadius: '10px', fontSize: '0.7rem' }}>
                         Active Lease
                       </span>

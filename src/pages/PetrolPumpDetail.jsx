@@ -902,7 +902,8 @@ export default function PetrolPumpDetail({ currentUser }) {
                   <thead>
                     <tr style={{ borderBottom: '2px solid var(--color-border)', textAlign: 'left' }}>
                       <th style={{ padding: '0.75rem' }}>Receipt #</th>
-                      <th style={{ padding: '0.75rem' }}>Rent Duration / Period</th>
+                      <th style={{ padding: '0.75rem' }}>From Date</th>
+                      <th style={{ padding: '0.75rem' }}>To Date</th>
                       <th style={{ padding: '0.75rem' }}>Payment Date</th>
                       <th style={{ padding: '0.75rem', textAlign: 'right' }}>Amount Paid</th>
                       <th style={{ padding: '0.75rem' }}>Payment Mode</th>
@@ -912,15 +913,17 @@ export default function PetrolPumpDetail({ currentUser }) {
                   <tbody>
                     {pumpCollections.map((col) => {
                       const enriched = getEnrichedPaymentData(col);
-                      const displayPeriod = (enriched?.period_from && enriched?.period_to)
-                        ? `${formatDate(enriched.period_from)} to ${formatDate(enriched.period_to)}`
-                        : (col.month || 'N/A');
+                      const fromText = enriched?.period_from ? formatDate(enriched.period_from) : (col.month || '—');
+                      const toText = enriched?.period_to ? formatDate(enriched.period_to) : (col.month || '—');
 
                       return (
                         <tr key={col.id} style={{ borderBottom: '1px solid var(--color-border)' }}>
                           <td style={{ padding: '0.75rem', fontWeight: 600 }}>{col.receipt_no}</td>
                           <td style={{ padding: '0.75rem', fontWeight: 500, color: 'var(--color-primary)' }}>
-                            {displayPeriod}
+                            {fromText}
+                          </td>
+                          <td style={{ padding: '0.75rem', fontWeight: 500, color: 'var(--color-primary)' }}>
+                            {toText}
                           </td>
                           <td style={{ padding: '0.75rem' }}>{formatDate(col.date)}</td>
                           <td style={{ padding: '0.75rem', textAlign: 'right', fontWeight: 600 }}>
@@ -1022,7 +1025,7 @@ export default function PetrolPumpDetail({ currentUser }) {
               {/* Rent Duration Dates From & To */}
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem', marginBottom: '1rem' }}>
                 <div className="form-group">
-                  <label className="form-label">Rent Period From *</label>
+                  <label className="form-label">From Date (Rent Period Start) *</label>
                   <input 
                     type="date" 
                     className="input-field" 
@@ -1032,7 +1035,7 @@ export default function PetrolPumpDetail({ currentUser }) {
                   />
                 </div>
                 <div className="form-group">
-                  <label className="form-label">Rent Period To *</label>
+                  <label className="form-label">To Date (Rent Period End) *</label>
                   <input 
                     type="date" 
                     className="input-field" 
