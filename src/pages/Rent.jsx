@@ -1,4 +1,5 @@
 import { useState, useMemo, useRef, useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 import { useSupabase } from '../hooks/useSupabase';
 import { useDb } from '../hooks/useDb';
 import { Plus, X, Search, DollarSign, Printer, Trash2, Paperclip, Download } from 'lucide-react';
@@ -366,9 +367,33 @@ export default function Rent({ currentUser }) {
   const db = useDb();
   
   // State
+  const location = useLocation();
   const [currentDate, setCurrentDate] = useState(new Date());
   const [searchQuery, setSearchQuery] = useState('');
+  const [statusFilter, setStatusFilter] = useState('all'); // 'all', 'pending', 'paid', 'fines'
   const [sortConfig, setSortConfig] = useState({ key: 'shop', direction: 'asc' });
+
+  useEffect(() => {
+    if (location.state?.tenantSearch) {
+      setSearchQuery(location.state.tenantSearch);
+    }
+    if (location.state?.month) {
+      const parts = location.state.month.split('-');
+      if (parts.length === 2) {
+        const y = parseInt(parts[0]);
+        const m = parseInt(parts[1]) - 1;
+        if (!isNaN(y) && !isNaN(m)) {
+          setCurrentDate(new Date(y, m, 1));
+        }
+      }
+    }
+    if (location.state?.filter) {
+      setStatusFilter(location.state.filter);
+    }
+    if (location.state) {
+      window.history.replaceState({}, document.title);
+    }
+  }, [location.state]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedSale, setSelectedSale] = useState(null);
   const [paymentDate, setPaymentDate] = useState(new Date().toISOString().split('T')[0]);
@@ -575,13 +600,26 @@ export default function Rent({ currentUser }) {
       if (balance <= 0) status = 'Paid';
       else if (amountPaid > 0) status = 'Partial';
 
+      const todayStr = new Date().toISOString().split('T')[0];
+      const overdueFine = calculateFine(selectedMonthString, todayStr);
+      const hasFine = balance > 0 && overdueFine > 0;
+
       return {
         ...sale,
         rentDue,
         amountPaid,
         balance,
-        status
+        status,
+        overdueFine: hasFine ? overdueFine : 0,
+        hasFine
       };
+    });
+
+    const statusFiltered = mapped.filter(item => {
+      if (statusFilter === 'pending') return item.balance > 0;
+      if (statusFilter === 'paid') return item.status === 'Paid';
+      if (statusFilter === 'fines') return item.hasFine;
+      return true;
     });
 
     const floorOrder = (name = '') => {
@@ -601,7 +639,7 @@ export default function Rent({ currentUser }) {
       return match ? parseInt(match[0], 10) : 0;
     };
 
-    return mapped.sort((a, b) => {
+    return statusFiltered.sort((a, b) => {
       let comparison = 0;
       if (sortConfig.key === 'tenant') {
         const tenantA = getTenantDetails(a.tenantId).toLowerCase();
@@ -644,7 +682,7 @@ export default function Rent({ currentUser }) {
 
       return sortConfig.direction === 'asc' ? comparison : -comparison;
     });
-  }, [sales, shops, tenants, rentCollections, selectedMonthString, searchQuery, sortConfig]);
+  }, [sales, shops, tenants, rentCollections, selectedMonthString, searchQuery, sortConfig, statusFilter]);
 
   const handleReceiveRent = async (e) => {
     e.preventDefault();
@@ -870,16 +908,46 @@ export default function Rent({ currentUser }) {
         </div>
       </div>
 
-      <div style={{ marginBottom: '1.5rem', position: 'relative' }}>
-        <Search size={18} style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--color-text-muted)' }} />
-        <input 
-          type="text" 
-          placeholder="Search by shop or tenant name..." 
-          className="form-control"
-          style={{ paddingLeft: '2.5rem', backgroundColor: '#fff' }}
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-        />
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem', marginBottom: '1.25rem', flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+          {[
+            { id: 'all', label: 'All Shops' },
+            { id: 'pending', label: 'Pending / Due' },
+            { id: 'paid', label: 'Paid' },
+            { id: 'fines', label: 'With Late Fines ⚠️' }
+          ].map(tab => (
+            <button
+              key={tab.id}
+              onClick={() => setStatusFilter(tab.id)}
+              style={{
+                padding: '0.45rem 0.9rem',
+                borderRadius: '8px',
+                border: '1px solid',
+                borderColor: statusFilter === tab.id ? 'var(--color-primary)' : 'var(--color-border)',
+                backgroundColor: statusFilter === tab.id ? 'var(--color-primary)' : '#ffffff',
+                color: statusFilter === tab.id ? '#ffffff' : 'var(--color-text)',
+                fontWeight: statusFilter === tab.id ? 600 : 500,
+                fontSize: '0.875rem',
+                cursor: 'pointer',
+                transition: 'all 0.15s ease'
+              }}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
+
+        <div style={{ flex: 1, minWidth: '260px', position: 'relative' }}>
+          <Search size={18} style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--color-text-muted)' }} />
+          <input 
+            type="text" 
+            placeholder="Search by shop or tenant name..." 
+            className="form-control"
+            style={{ paddingLeft: '2.5rem', backgroundColor: '#fff', width: '100%' }}
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+          />
+        </div>
       </div>
 
       <div className="card" style={{ padding: 0 }}>
