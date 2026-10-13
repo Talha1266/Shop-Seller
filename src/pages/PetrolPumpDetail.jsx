@@ -274,7 +274,6 @@ const PetrolPumpCollectionsReportPrint = ({
   currentExpectedMonthlyRent
 }) => {
   const [logoUrl, setLogoUrl] = useState('');
-  const [signatureUrl, setSignatureUrl] = useState('');
 
   useEffect(() => {
     if (appSettings?.watermark_url) {
@@ -285,15 +284,7 @@ const PetrolPumpCollectionsReportPrint = ({
           if (data) setLogoUrl(data.signedUrl);
         });
     }
-    if (appSettings?.auth_signature_url) {
-      supabase.storage
-        .from('tenant-documents')
-        .createSignedUrl(appSettings.auth_signature_url, 3600)
-        .then(({ data }) => {
-          if (data) setSignatureUrl(data.signedUrl);
-        });
-    }
-  }, [appSettings?.watermark_url, appSettings?.auth_signature_url]);
+  }, [appSettings?.watermark_url]);
 
   if (!pump) return <div ref={innerRef}></div>;
 
@@ -466,15 +457,7 @@ const PetrolPumpCollectionsReportPrint = ({
           <div style={{ borderTop: '1px solid #0f172a', paddingTop: '6px', fontWeight: 600 }}>Checked / Verified By</div>
         </div>
         <div style={{ textAlign: 'center', width: '220px' }}>
-          {signatureUrl && (
-            <img 
-              src={signatureUrl} 
-              alt="Signature" 
-              style={{ maxHeight: '45px', marginBottom: '4px', objectFit: 'contain', mixBlendMode: 'multiply' }} 
-            />
-          )}
           <div style={{ borderTop: '1px solid #0f172a', paddingTop: '6px', fontWeight: 600 }}>Authorized Signature & Stamp</div>
-          {appSettings?.auth_name && <div style={{ fontSize: '10px', color: '#64748b' }}>{appSettings.auth_name}</div>}
         </div>
       </div>
     </div>
@@ -489,7 +472,6 @@ const PetrolPumpScheduleReportPrint = ({
   appSettings
 }) => {
   const [logoUrl, setLogoUrl] = useState('');
-  const [signatureUrl, setSignatureUrl] = useState('');
 
   useEffect(() => {
     if (appSettings?.watermark_url) {
@@ -500,15 +482,7 @@ const PetrolPumpScheduleReportPrint = ({
           if (data) setLogoUrl(data.signedUrl);
         });
     }
-    if (appSettings?.auth_signature_url) {
-      supabase.storage
-        .from('tenant-documents')
-        .createSignedUrl(appSettings.auth_signature_url, 3600)
-        .then(({ data }) => {
-          if (data) setSignatureUrl(data.signedUrl);
-        });
-    }
-  }, [appSettings?.watermark_url, appSettings?.auth_signature_url]);
+  }, [appSettings?.watermark_url]);
 
   if (!pump) return <div ref={innerRef}></div>;
 
@@ -668,15 +642,7 @@ const PetrolPumpScheduleReportPrint = ({
           <div style={{ borderTop: '1px solid #0f172a', paddingTop: '6px', fontWeight: 600 }}>Checked / Verified By</div>
         </div>
         <div style={{ textAlign: 'center', width: '220px' }}>
-          {signatureUrl && (
-            <img 
-              src={signatureUrl} 
-              alt="Signature" 
-              style={{ maxHeight: '45px', marginBottom: '4px', objectFit: 'contain', mixBlendMode: 'multiply' }} 
-            />
-          )}
           <div style={{ borderTop: '1px solid #0f172a', paddingTop: '6px', fontWeight: 600 }}>Authorized Signature & Stamp</div>
-          {appSettings?.auth_name && <div style={{ fontSize: '10px', color: '#64748b' }}>{appSettings.auth_name}</div>}
         </div>
       </div>
     </div>
@@ -692,7 +658,6 @@ const PetrolPumpLeaseSummaryPrint = ({
   totalPaidAllTime
 }) => {
   const [logoUrl, setLogoUrl] = useState('');
-  const [signatureUrl, setSignatureUrl] = useState('');
 
   useEffect(() => {
     if (appSettings?.watermark_url) {
@@ -703,15 +668,7 @@ const PetrolPumpLeaseSummaryPrint = ({
           if (data) setLogoUrl(data.signedUrl);
         });
     }
-    if (appSettings?.auth_signature_url) {
-      supabase.storage
-        .from('tenant-documents')
-        .createSignedUrl(appSettings.auth_signature_url, 3600)
-        .then(({ data }) => {
-          if (data) setSignatureUrl(data.signedUrl);
-        });
-    }
-  }, [appSettings?.watermark_url, appSettings?.auth_signature_url]);
+  }, [appSettings?.watermark_url]);
 
   if (!pump) return <div ref={innerRef}></div>;
 
@@ -836,15 +793,7 @@ const PetrolPumpLeaseSummaryPrint = ({
           <div style={{ borderTop: '1px solid #0f172a', paddingTop: '6px', fontWeight: 600 }}>Checked / Verified By</div>
         </div>
         <div style={{ textAlign: 'center', width: '220px' }}>
-          {signatureUrl && (
-            <img 
-              src={signatureUrl} 
-              alt="Signature" 
-              style={{ maxHeight: '45px', marginBottom: '4px', objectFit: 'contain', mixBlendMode: 'multiply' }} 
-            />
-          )}
           <div style={{ borderTop: '1px solid #0f172a', paddingTop: '6px', fontWeight: 600 }}>Authorized Signature & Stamp</div>
-          {appSettings?.auth_name && <div style={{ fontSize: '10px', color: '#64748b' }}>{appSettings.auth_name}</div>}
         </div>
       </div>
     </div>
