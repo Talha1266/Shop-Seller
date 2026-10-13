@@ -924,6 +924,26 @@ export default function PetrolPumpDetail({ currentUser }) {
     }
   };
 
+  // Fetch petrol pump
+  const allPumps = useSupabase('petrol_pumps') || [];
+  const pump = useMemo(() => allPumps.find(p => p.id === id), [allPumps, id]);
+
+  // Fetch collections for this petrol pump
+  const allCollections = useSupabase('petrol_pump_rent_collections') || [];
+  const pumpCollections = useMemo(() => {
+    return allCollections
+      .filter(c => c.petrol_pump_id === id)
+      .sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0));
+  }, [allCollections, id]);
+
+  const totalPaidAllTime = useMemo(() => {
+    return pumpCollections.reduce((sum, c) => sum + Number(c.amount_paid || 0), 0);
+  }, [pumpCollections]);
+
+  // App settings for receipt branding
+  const appSettingsList = useSupabase('app_settings') || [];
+  const appSettings = appSettingsList.length > 0 ? appSettingsList[0] : null;
+
   const printRef = useRef(null);
   const handlePrint = useReactToPrint({ contentRef: printRef });
 
@@ -944,26 +964,6 @@ export default function PetrolPumpDetail({ currentUser }) {
     contentRef: printLeaseSummaryRef,
     documentTitle: `${pump?.name || 'PetrolPump'}_Lease_Summary`,
   });
-
-  // Fetch petrol pump
-  const allPumps = useSupabase('petrol_pumps') || [];
-  const pump = useMemo(() => allPumps.find(p => p.id === id), [allPumps, id]);
-
-  // Fetch collections for this petrol pump
-  const allCollections = useSupabase('petrol_pump_rent_collections') || [];
-  const pumpCollections = useMemo(() => {
-    return allCollections
-      .filter(c => c.petrol_pump_id === id)
-      .sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0));
-  }, [allCollections, id]);
-
-  const totalPaidAllTime = useMemo(() => {
-    return pumpCollections.reduce((sum, c) => sum + Number(c.amount_paid || 0), 0);
-  }, [pumpCollections]);
-
-  // App settings for receipt branding
-  const appSettingsList = useSupabase('app_settings') || [];
-  const appSettings = appSettingsList.length > 0 ? appSettingsList[0] : null;
 
   // Edit form state
   const [editAgreementFile, setEditAgreementFile] = useState(null);
