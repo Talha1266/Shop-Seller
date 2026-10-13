@@ -449,7 +449,7 @@ const PetrolPumpCollectionsReportPrint = ({
       </table>
 
       {/* Signature Section */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '40px', paddingTop: '20px', pageBreakInside: 'avoid', fontSize: '11px', color: '#334155' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '80px', paddingTop: '20px', pageBreakInside: 'avoid', fontSize: '11px', color: '#334155' }}>
         <div style={{ textAlign: 'center', width: '200px' }}>
           <div style={{ borderTop: '1px solid #0f172a', paddingTop: '6px', fontWeight: 600 }}>Prepared By</div>
         </div>
@@ -634,7 +634,7 @@ const PetrolPumpScheduleReportPrint = ({
       </table>
 
       {/* Signature Section */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '40px', paddingTop: '20px', pageBreakInside: 'avoid', fontSize: '11px', color: '#334155' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '80px', paddingTop: '20px', pageBreakInside: 'avoid', fontSize: '11px', color: '#334155' }}>
         <div style={{ textAlign: 'center', width: '200px' }}>
           <div style={{ borderTop: '1px solid #0f172a', paddingTop: '6px', fontWeight: 600 }}>Prepared By</div>
         </div>
@@ -785,7 +785,7 @@ const PetrolPumpLeaseSummaryPrint = ({
       </table>
 
       {/* Signature Section */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '50px', paddingTop: '20px', pageBreakInside: 'avoid', fontSize: '11px', color: '#334155' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '80px', paddingTop: '20px', pageBreakInside: 'avoid', fontSize: '11px', color: '#334155' }}>
         <div style={{ textAlign: 'center', width: '200px' }}>
           <div style={{ borderTop: '1px solid #0f172a', paddingTop: '6px', fontWeight: 600 }}>Prepared By</div>
         </div>
