@@ -62,6 +62,230 @@ const TenantProfilePrint = ({ tenant, tenantSales, tenantShops, payments, innerR
   );
 };
 
+const TenantsListPrint = ({
+  tenants,
+  shops,
+  sales,
+  payments,
+  innerRef,
+  projectName,
+  appSettings,
+  activeSalesMap,
+  searchQuery,
+}) => {
+  const [logoUrl, setLogoUrl] = useState('');
+
+  useEffect(() => {
+    if (appSettings?.watermark_url) {
+      supabase.storage
+        .from('tenant-documents')
+        .createSignedUrl(appSettings.watermark_url, 3600)
+        .then(({ data }) => {
+          if (data) setLogoUrl(data.signedUrl);
+        });
+    }
+  }, [appSettings?.watermark_url]);
+
+  if (!tenants) return <div ref={innerRef}></div>;
+
+  // Pre-calculate per-tenant rows
+  const tenantRows = tenants.map((tenant, idx) => {
+    const activeSales = Array.from(activeSalesMap.values()).filter(s => s.tenantId === tenant.id);
+    const activeShops = activeSales
+      .map(s => shops.find(sh => sh.id === s.shopId && sh.status === 'Occupied'))
+      .filter(Boolean);
+
+    const shopsText = activeShops.length > 0
+      ? activeShops.map(sh => `Shop ${sh.shopNumber} (${sh.block}, ${sh.floor})`).join(', ')
+      : 'None (Historical)';
+
+    const monthlyRent = activeSales.reduce((sum, sale) => {
+      const sh = shops.find(s => s.id === sale.shopId);
+      return sum + parseFloat(sale.monthly_rent || sh?.monthly_rent || 0);
+    }, 0);
+
+    const totalAgreed = activeSales.reduce((sum, s) => sum + parseFloat(s.totalAmount || 0), 0);
+    const totalAdvance = activeSales.reduce((sum, s) => sum + parseFloat(s.advancePayment || 0), 0);
+
+    const tenantPayments = payments.filter(p => p.tenantId === tenant.id || activeSales.some(s => s.id === p.saleId));
+    const totalPaid = tenantPayments.reduce((sum, p) => sum + parseFloat(p.amount || 0), 0) + totalAdvance;
+    const balance = totalAgreed - totalPaid;
+
+    return {
+      srNo: idx + 1,
+      tenant,
+      shopsText,
+      monthlyRent,
+      totalAgreed,
+      totalPaid,
+      balance,
+    };
+  });
+
+  const grandRent = tenantRows.reduce((sum, r) => sum + r.monthlyRent, 0);
+  const grandAgreed = tenantRows.reduce((sum, r) => sum + r.totalAgreed, 0);
+  const grandPaid = tenantRows.reduce((sum, r) => sum + r.totalPaid, 0);
+  const grandBalance = tenantRows.reduce((sum, r) => sum + r.balance, 0);
+
+  const formattedDate = new Date().toLocaleDateString('en-GB', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+  });
+  const formattedTime = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+  return (
+    <div ref={innerRef} className="print-all-tenants-wrapper" style={{ display: 'none', padding: '24px', fontFamily: 'system-ui, -apple-system, Segoe UI, Roboto, sans-serif', color: '#0f172a' }}>
+      <style type="text/css" media="print">
+        {`
+          @page { size: landscape; margin: 10mm; }
+          .print-all-tenants-wrapper { display: block !important; }
+          body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+          table { page-break-inside: auto; }
+          tr { page-break-inside: avoid; page-break-after: auto; }
+          thead { display: table-header-group; }
+          tfoot { display: table-footer-group; }
+        `}
+      </style>
+
+      {/* Header */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '2px solid #0f172a', paddingBottom: '16px', marginBottom: '16px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+          {logoUrl && (
+            <img
+              src={logoUrl}
+              alt="Logo"
+              style={{ maxHeight: '70px', maxWidth: '100px', objectFit: 'contain', mixBlendMode: 'multiply' }}
+            />
+          )}
+          <div>
+            <h1 style={{ margin: 0, fontSize: '22px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+              {projectName || 'Plaza Management'}
+            </h1>
+            <h2 style={{ margin: '4px 0 0 0', fontSize: '15px', fontWeight: 600, color: '#334155', letterSpacing: '0.25px' }}>
+              TENANTS DIRECTORY & SHOP ALLOCATIONS REPORT
+            </h2>
+            {searchQuery && (
+              <p style={{ margin: '2px 0 0 0', fontSize: '11px', color: '#64748b' }}>
+                Filtered by: "{searchQuery}"
+              </p>
+            )}
+          </div>
+        </div>
+
+        <div style={{ textAlign: 'right', fontSize: '11px', color: '#475569' }}>
+          <p style={{ margin: 0 }}><strong>Date:</strong> {formattedDate}</p>
+          <p style={{ margin: '2px 0 0 0' }}><strong>Time:</strong> {formattedTime}</p>
+          <p style={{ margin: '2px 0 0 0' }}><strong>Total Tenants:</strong> {tenantRows.length}</p>
+        </div>
+      </div>
+
+      {/* Table */}
+      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '11px', lineHeight: 1.4 }}>
+        <thead>
+          <tr style={{ backgroundColor: '#f1f5f9', borderTop: '1px solid #cbd5e1', borderBottom: '2px solid #0f172a' }}>
+            <th style={{ padding: '8px 6px', textAlign: 'center', width: '35px', fontWeight: 700, borderRight: '1px solid #cbd5e1' }}>#</th>
+            <th style={{ padding: '8px 8px', textAlign: 'left', fontWeight: 700, borderRight: '1px solid #cbd5e1' }}>Tenant Name</th>
+            <th style={{ padding: '8px 8px', textAlign: 'center', width: '125px', fontWeight: 700, borderRight: '1px solid #cbd5e1' }}>CNIC Number</th>
+            <th style={{ padding: '8px 8px', textAlign: 'center', width: '110px', fontWeight: 700, borderRight: '1px solid #cbd5e1' }}>Mobile Number</th>
+            <th style={{ padding: '8px 8px', textAlign: 'left', fontWeight: 700, borderRight: '1px solid #cbd5e1' }}>Allocated Shop(s)</th>
+            <th style={{ padding: '8px 8px', textAlign: 'right', width: '95px', fontWeight: 700, borderRight: '1px solid #cbd5e1' }}>Rent / Mo</th>
+            <th style={{ padding: '8px 8px', textAlign: 'right', width: '110px', fontWeight: 700, borderRight: '1px solid #cbd5e1' }}>Agreed Amount</th>
+            <th style={{ padding: '8px 8px', textAlign: 'right', width: '110px', fontWeight: 700, borderRight: '1px solid #cbd5e1' }}>Total Paid</th>
+            <th style={{ padding: '8px 8px', textAlign: 'right', width: '110px', fontWeight: 700 }}>Remaining Balance</th>
+          </tr>
+        </thead>
+        <tbody>
+          {tenantRows.length === 0 ? (
+            <tr>
+              <td colSpan="9" style={{ textAlign: 'center', padding: '24px', color: '#64748b' }}>
+                No active tenants found.
+              </td>
+            </tr>
+          ) : (
+            tenantRows.map((r, i) => (
+              <tr
+                key={r.tenant.id}
+                style={{
+                  backgroundColor: i % 2 === 0 ? '#ffffff' : '#f8fafc',
+                  borderBottom: '1px solid #e2e8f0',
+                }}
+              >
+                <td style={{ padding: '6px', textAlign: 'center', borderRight: '1px solid #e2e8f0', color: '#64748b' }}>
+                  {r.srNo}
+                </td>
+                <td style={{ padding: '6px 8px', fontWeight: 600, borderRight: '1px solid #e2e8f0' }}>
+                  {r.tenant.name}
+                </td>
+                <td style={{ padding: '6px 8px', textAlign: 'center', fontFamily: 'monospace', fontSize: '11px', borderRight: '1px solid #e2e8f0' }}>
+                  {r.tenant.cnic || '—'}
+                </td>
+                <td style={{ padding: '6px 8px', textAlign: 'center', fontFamily: 'monospace', fontSize: '11px', borderRight: '1px solid #e2e8f0' }}>
+                  {r.tenant.mobile || '—'}
+                </td>
+                <td style={{ padding: '6px 8px', borderRight: '1px solid #e2e8f0' }}>
+                  {r.shopsText}
+                </td>
+                <td style={{ padding: '6px 8px', textAlign: 'right', borderRight: '1px solid #e2e8f0' }}>
+                  {r.monthlyRent > 0 ? `Rs. ${r.monthlyRent.toLocaleString()}` : '—'}
+                </td>
+                <td style={{ padding: '6px 8px', textAlign: 'right', borderRight: '1px solid #e2e8f0' }}>
+                  {r.totalAgreed > 0 ? `Rs. ${r.totalAgreed.toLocaleString()}` : '—'}
+                </td>
+                <td style={{ padding: '6px 8px', textAlign: 'right', borderRight: '1px solid #e2e8f0', color: '#0f766e', fontWeight: 500 }}>
+                  {r.totalPaid > 0 ? `Rs. ${r.totalPaid.toLocaleString()}` : '—'}
+                </td>
+                <td style={{
+                  padding: '6px 8px',
+                  textAlign: 'right',
+                  fontWeight: 700,
+                  color: r.balance > 0 ? '#b91c1c' : '#15803d',
+                }}>
+                  Rs. {r.balance.toLocaleString()}
+                </td>
+              </tr>
+            ))
+          )}
+        </tbody>
+        {tenantRows.length > 0 && (
+          <tfoot>
+            <tr style={{ backgroundColor: '#f1f5f9', borderTop: '2px solid #0f172a', borderBottom: '2px solid #0f172a', fontWeight: 700 }}>
+              <td colSpan="5" style={{ padding: '8px', textAlign: 'left', borderRight: '1px solid #cbd5e1' }}>
+                TOTALS ({tenantRows.length} {tenantRows.length === 1 ? 'TENANT' : 'TENANTS'})
+              </td>
+              <td style={{ padding: '8px', textAlign: 'right', borderRight: '1px solid #cbd5e1' }}>
+                Rs. {grandRent.toLocaleString()}
+              </td>
+              <td style={{ padding: '8px', textAlign: 'right', borderRight: '1px solid #cbd5e1' }}>
+                Rs. {grandAgreed.toLocaleString()}
+              </td>
+              <td style={{ padding: '8px', textAlign: 'right', borderRight: '1px solid #cbd5e1', color: '#0f766e' }}>
+                Rs. {grandPaid.toLocaleString()}
+              </td>
+              <td style={{ padding: '8px', textAlign: 'right', color: grandBalance > 0 ? '#b91c1c' : '#15803d' }}>
+                Rs. {grandBalance.toLocaleString()}
+              </td>
+            </tr>
+          </tfoot>
+        )}
+      </table>
+
+      {/* Signature Section */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '40px', paddingTop: '20px', pageBreakInside: 'avoid', fontSize: '11px', color: '#334155' }}>
+        <div style={{ textAlign: 'center', width: '200px' }}>
+          <div style={{ borderTop: '1px solid #0f172a', paddingTop: '6px', fontWeight: 600 }}>Prepared By</div>
+        </div>
+        <div style={{ textAlign: 'center', width: '200px' }}>
+          <div style={{ borderTop: '1px solid #0f172a', paddingTop: '6px', fontWeight: 600 }}>Checked / Verified By</div>
+        </div>
+        <div style={{ textAlign: 'center', width: '220px' }}>
+          <div style={{ borderTop: '1px solid #0f172a', paddingTop: '6px', fontWeight: 600 }}>Authorized Signature & Stamp</div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 export default function Tenants({ currentUser }) {
   const db = useDb();
   const { activeProject } = useProject();
@@ -82,9 +306,15 @@ export default function Tenants({ currentUser }) {
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
   const [selectedTenantProfile, setSelectedTenantProfile] = useState(null);
   const printRef = useRef(null);
+  const printAllRef = useRef(null);
   
   const handlePrint = useReactToPrint({
     contentRef: printRef,
+  });
+
+  const handlePrintAllTenants = useReactToPrint({
+    contentRef: printAllRef,
+    documentTitle: `${activeProject?.name || 'Plaza'}_Tenants_Directory`,
   });
   
   const location = useLocation();
@@ -109,6 +339,9 @@ export default function Tenants({ currentUser }) {
   const sales = useSupabase('sales') || [];
   const payments = useSupabase('payments') || [];
   const documents = useSupabase('documents') || [];
+  const installments = useSupabase('installments') || [];
+  const appSettingsList = useSupabase('app_settings') || [];
+  const appSettings = appSettingsList.length > 0 ? appSettingsList[0] : null;
   
   const availableShops = shops.filter(s => s.status === 'Available');
 
@@ -369,6 +602,50 @@ export default function Tenants({ currentUser }) {
   };
   const profileData = getProfileData();
 
+  const floorOrder = (name = '') => {
+    const n = name.toLowerCase().trim();
+    if (n.includes('ground')) return 0;
+    if (n.includes('first')  || n === '1st') return 1;
+    if (n.includes('second') || n === '2nd') return 2;
+    if (n.includes('third')  || n === '3rd') return 3;
+    if (n.includes('fourth') || n === '4th') return 4;
+    const num = parseInt(n);
+    return isNaN(num) ? 99 : num + 10;
+  };
+
+  const filteredTenants = useMemo(() => {
+    return tenants.filter(t => {
+      const matchesSearch = t.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
+                            t.cnic.includes(searchQuery) ||
+                            (t.mobile && t.mobile.includes(searchQuery));
+      
+      const activeShopStr = getShopDetails(t.id);
+      const hasActiveShop = activeShopStr !== 'None (Historical)' && activeShopStr !== 'None';
+      
+      return matchesSearch && hasActiveShop;
+    });
+  }, [tenants, searchQuery, activeSalesMap, shops]);
+
+  const sortedTenants = useMemo(() => {
+    return [...filteredTenants].sort((a, b) => {
+      const saleA = sales.find(s => s.tenantId === a.id);
+      const saleB = sales.find(s => s.tenantId === b.id);
+      const shopA = saleA ? shops.find(s => s.id === saleA.shopId) : null;
+      const shopB = saleB ? shops.find(s => s.id === saleB.shopId) : null;
+
+      // Block: alphabetical (A, B, C...)
+      const blockCmp = (shopA?.block || '').localeCompare(shopB?.block || '');
+      if (blockCmp !== 0) return blockCmp;
+
+      // Floor: Ground → First → Second...
+      const floorCmp = floorOrder(shopA?.floor) - floorOrder(shopB?.floor);
+      if (floorCmp !== 0) return floorCmp;
+
+      // Shop Number: numeric ascending
+      return parseInt(shopA?.shopNumber || 0) - parseInt(shopB?.shopNumber || 0);
+    });
+  }, [filteredTenants, sales, shops]);
+
   return (
     <div>
       <TenantProfilePrint 
@@ -379,9 +656,28 @@ export default function Tenants({ currentUser }) {
         payments={profileData?.payments}
         projectName={activeProject?.name}
       />
-      <div className="page-header">
+      <TenantsListPrint
+        innerRef={printAllRef}
+        tenants={sortedTenants}
+        shops={shops}
+        sales={sales}
+        payments={payments}
+        projectName={activeProject?.name}
+        appSettings={appSettings}
+        activeSalesMap={activeSalesMap}
+        searchQuery={searchQuery}
+      />
+      <div className="page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
         <h1 className="page-title">Tenants Directory</h1>
-        <div style={{ display: 'flex', gap: '1rem' }}>
+        <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', flexWrap: 'wrap' }}>
+          <button 
+            className="btn btn-secondary" 
+            onClick={handlePrintAllTenants}
+            style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}
+            title="Print Full Tenants Directory Report"
+          >
+            <Printer size={18} /> Print Tenants List
+          </button>
           {currentUser?.isAdmin && (
             <button 
               className={`btn ${isUnlocked ? 'btn-secondary' : 'btn-primary'}`}
@@ -423,51 +719,14 @@ export default function Tenants({ currentUser }) {
               </tr>
             </thead>
             <tbody>
-              {tenants.length === 0 ? (
-                <tr><td colSpan="5" style={{ textAlign: 'center', padding: '2rem', color: 'var(--color-text-muted)' }}>No tenants found. Add one to get started.</td></tr>
-              ) : (() => {
-                // Floor ordering: Ground first, then First, Second, Third, etc.
-                const floorOrder = (name = '') => {
-                  const n = name.toLowerCase().trim();
-                  if (n.includes('ground')) return 0;
-                  if (n.includes('first')  || n === '1st') return 1;
-                  if (n.includes('second') || n === '2nd') return 2;
-                  if (n.includes('third')  || n === '3rd') return 3;
-                  if (n.includes('fourth') || n === '4th') return 4;
-                  const num = parseInt(n);
-                  return isNaN(num) ? 99 : num + 10;
-                };
-
-                const filteredTenants = tenants.filter(t => {
-                  const matchesSearch = t.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
-                                        t.cnic.includes(searchQuery) ||
-                                        (t.mobile && t.mobile.includes(searchQuery));
-                  
-                  const activeShopStr = getShopDetails(t.id);
-                  const hasActiveShop = activeShopStr !== 'None (Historical)' && activeShopStr !== 'None';
-                  
-                  return matchesSearch && hasActiveShop;
-                });
-
-                const sortedTenants = [...filteredTenants].sort((a, b) => {
-                  const saleA = sales.find(s => s.tenantId === a.id);
-                  const saleB = sales.find(s => s.tenantId === b.id);
-                  const shopA = saleA ? shops.find(s => s.id === saleA.shopId) : null;
-                  const shopB = saleB ? shops.find(s => s.id === saleB.shopId) : null;
-
-                  // Block: alphabetical (A, B, C...)
-                  const blockCmp = (shopA?.block || '').localeCompare(shopB?.block || '');
-                  if (blockCmp !== 0) return blockCmp;
-
-                  // Floor: Ground → First → Second...
-                  const floorCmp = floorOrder(shopA?.floor) - floorOrder(shopB?.floor);
-                  if (floorCmp !== 0) return floorCmp;
-
-                  // Shop Number: numeric ascending
-                  return parseInt(shopA?.shopNumber || 0) - parseInt(shopB?.shopNumber || 0);
-                });
-
-                return sortedTenants.map(tenant => (
+              {sortedTenants.length === 0 ? (
+                <tr>
+                  <td colSpan="5" style={{ textAlign: 'center', padding: '2rem', color: 'var(--color-text-muted)' }}>
+                    {searchQuery ? 'No tenants match your search query.' : 'No tenants found. Add one to get started.'}
+                  </td>
+                </tr>
+              ) : (
+                sortedTenants.map(tenant => (
                   <tr key={tenant.id}>
                     <td>
                       <span 
@@ -502,8 +761,8 @@ export default function Tenants({ currentUser }) {
                       )}
                     </td>
                   </tr>
-                ));
-              })()}
+                ))
+              )}
             </tbody>
           </table>
         </div>

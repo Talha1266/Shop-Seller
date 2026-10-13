@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useSupabase } from '../hooks/useSupabase';
 import { useDb } from '../hooks/useDb';
 import { supabase } from '../supabaseClient';
-import { Plus, X, Layers, ChevronDown, ChevronRight, Store, Trash2, UserMinus, Lock, LockOpen } from 'lucide-react';
+import { Plus, X, Layers, ChevronDown, ChevronRight, Store, Trash2, UserMinus, Lock, LockOpen, Users } from 'lucide-react';
 
 export default function Shops({ currentUser }) {
   const db = useDb();
@@ -370,6 +370,14 @@ export default function Shops({ currentUser }) {
       <div className="page-header">
         <h1 className="page-title">Shops Management</h1>
         <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
+          <button 
+            className="btn btn-secondary"
+            onClick={() => navigate('/tenants')}
+            style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}
+            title="Go to Tenants Directory to view and print"
+          >
+            <Users size={18} /> Tenants Directory
+          </button>
           {currentUser?.isAdmin && (
             <button 
               className={`btn ${isUnlocked ? 'btn-secondary' : 'btn-primary'}`} 
