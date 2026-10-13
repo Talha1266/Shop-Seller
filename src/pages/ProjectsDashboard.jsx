@@ -35,7 +35,7 @@ export default function ProjectsDashboard() {
     lease_end_date: '',
     grace_period: '',
     monthly_rent: '',
-    fixed_rent_years: '3',
+    fixed_rent_years: '0',
     annual_increase_pct: '',
     increase_interval_years: '3'
   });
@@ -158,7 +158,8 @@ export default function ProjectsDashboard() {
 
       const rawGrace = cleanGracePeriod(pumpForm.grace_period);
       const intervalVal = Number(pumpForm.increase_interval_years) || 1;
-      const fixedVal = Number(pumpForm.fixed_rent_years) || 1;
+      const parsedFixed = Number(pumpForm.fixed_rent_years);
+      const fixedVal = isNaN(parsedFixed) || parsedFixed < 0 ? 0 : Math.floor(parsedFixed);
 
       const newPump = {
         name: pumpForm.name.trim(),
@@ -212,7 +213,7 @@ export default function ProjectsDashboard() {
         lease_end_date: '',
         grace_period: '',
         monthly_rent: '',
-        fixed_rent_years: '3',
+        fixed_rent_years: '0',
         annual_increase_pct: '',
         increase_interval_years: '3'
       });
@@ -496,7 +497,7 @@ export default function ProjectsDashboard() {
                           +{pump.annual_increase_pct || 0}% / {getPumpIntervalYears(pump) > 1 ? `${getPumpIntervalYears(pump)} yrs` : 'yr'}
                         </p>
                         <p style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)', margin: '0.15rem 0 0 0' }}>
-                          Fixed 1st {getPumpFixedRentYears(pump)} yr{getPumpFixedRentYears(pump) > 1 ? 's' : ''}
+                          {getPumpFixedRentYears(pump) === 0 ? 'No fixed period' : `Fixed 1st ${getPumpFixedRentYears(pump)} yr${getPumpFixedRentYears(pump) > 1 ? 's' : ''}`}
                         </p>
                       </div>
                     </div>
@@ -714,11 +715,11 @@ export default function ProjectsDashboard() {
                   <input 
                     type="number" 
                     className="input-field" 
-                    min="1"
+                    min="0"
                     step="1"
                     value={pumpForm.fixed_rent_years}
                     onChange={e => setPumpForm({ ...pumpForm, fixed_rent_years: e.target.value })}
-                    placeholder="e.g. 3" 
+                    placeholder="e.g. 0 (none) or 3" 
                     required 
                   />
                 </div>
@@ -752,7 +753,9 @@ export default function ProjectsDashboard() {
                 </div>
               </div>
               <p style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', margin: '0 0 1.5rem 0' }}>
-                Rent will remain fixed for the first {pumpForm.fixed_rent_years || 1} year{Number(pumpForm.fixed_rent_years || 1) > 1 ? 's' : ''}, and then increment by {pumpForm.annual_increase_pct || 0}% every {pumpForm.increase_interval_years || 1} year{Number(pumpForm.increase_interval_years || 1) > 1 ? 's' : ''}.
+                {Number(pumpForm.fixed_rent_years) === 0
+                  ? `No fixed rent period. Rent will increment by ${pumpForm.annual_increase_pct || 0}% every ${pumpForm.increase_interval_years || 1} year${Number(pumpForm.increase_interval_years || 1) > 1 ? 's' : ''}.`
+                  : `Rent will remain fixed for the first ${pumpForm.fixed_rent_years} year${Number(pumpForm.fixed_rent_years) > 1 ? 's' : ''}, and then increment by ${pumpForm.annual_increase_pct || 0}% every ${pumpForm.increase_interval_years || 1} year${Number(pumpForm.increase_interval_years || 1) > 1 ? 's' : ''}.`}
               </p>
 
               <div className="form-group" style={{ marginBottom: '1.25rem' }}>
