@@ -28,9 +28,23 @@ export const formatDate = (d) => {
   }
 };
 
-// Helper to calculate lease end date automatically for given years (default 15 years)
-export const calculateLeaseEndDate = (startDateStr, years = 15) => {
+// Helper to extract total lease years from period string (e.g. '15 Years', '20', '30 years' -> 15, 20, 30)
+export const parseLeaseYears = (period, fallback = 15) => {
+  if (typeof period === 'number' && !isNaN(period) && period > 0) return period;
+  if (!period) return fallback;
+  const match = String(period).match(/\d+/);
+  if (match) {
+    const num = parseInt(match[0], 10);
+    if (!isNaN(num) && num > 0) return num;
+  }
+  return fallback;
+};
+
+// Helper to calculate lease end date automatically according to start date and total lease period
+export const calculateLeaseEndDate = (startDateStr, periodOrYears = 15) => {
   if (!startDateStr) return '';
+  const years = typeof periodOrYears === 'number' ? periodOrYears : parseLeaseYears(periodOrYears, 15);
+  if (!years || years <= 0) return '';
   try {
     const parts = startDateStr.split('-').map(Number);
     if (parts.length !== 3) return '';
@@ -361,7 +375,7 @@ export default function PetrolPumpDetail({ currentUser }) {
         lease_deed_reg_date: pump.lease_deed_reg_date || '',
         total_lease_period: pump.total_lease_period || '15 Years',
         lease_start_date: pump.lease_start_date || '',
-        lease_end_date: pump.lease_end_date || (pump.lease_start_date ? calculateLeaseEndDate(pump.lease_start_date, 15) : ''),
+        lease_end_date: pump.lease_end_date || (pump.lease_start_date ? calculateLeaseEndDate(pump.lease_start_date, pump.total_lease_period || 15) : ''),
         grace_period: cleanGracePeriod(pump.grace_period),
         monthly_rent: pump.monthly_rent || '',
         fixed_rent_years: getPumpFixedRentYears(pump),
@@ -381,12 +395,9 @@ export default function PetrolPumpDetail({ currentUser }) {
     const fixedYears = getPumpFixedRentYears(pump);
     const startDate = pump.lease_start_date ? new Date(pump.lease_start_date) : new Date();
     
-    // Determine total years (standard 15 years lease)
-    let totalYears = 15;
-    if (pump.total_lease_period) {
-      const match = pump.total_lease_period.match(/\d+/);
-      if (match) totalYears = parseInt(match[0], 10);
-    } else if (pump.lease_end_date && pump.lease_start_date) {
+    // Determine total years (from total_lease_period or date difference)
+    let totalYears = parseLeaseYears(pump.total_lease_period, 15);
+    if (!pump.total_lease_period && pump.lease_end_date && pump.lease_start_date) {
       const diffYears = (new Date(pump.lease_end_date) - new Date(pump.lease_start_date)) / (365.25 * 24 * 3600 * 1000);
       if (diffYears > 0) totalYears = Math.round(diffYears);
     }
@@ -1514,7 +1525,17 @@ export default function PetrolPumpDetail({ currentUser }) {
                     type="text" 
                     className="input-field" 
                     value={editForm.total_lease_period}
-                    onChange={e => setEditForm({ ...editForm, total_lease_period: e.target.value })}
+                    onChange={e => {
+                      const newPeriod = e.target.value;
+                      const newEndDate = editForm.lease_start_date 
+                        ? calculateLeaseEndDate(editForm.lease_start_date, newPeriod) 
+                        : editForm.lease_end_date;
+                      setEditForm({ 
+                        ...editForm, 
+                        total_lease_period: newPeriod,
+                        lease_end_date: newEndDate
+                      });
+                    }}
                     placeholder="e.g. 15 Years" 
                   />
                 </div>
@@ -1540,12 +1561,11 @@ export default function PetrolPumpDetail({ currentUser }) {
                     value={editForm.lease_start_date}
                     onChange={e => {
                       const startDate = e.target.value;
-                      const autoEndDate = calculateLeaseEndDate(startDate, 15);
+                      const autoEndDate = calculateLeaseEndDate(startDate, editForm.total_lease_period);
                       setEditForm({ 
                         ...editForm, 
                         lease_start_date: startDate,
-                        lease_end_date: autoEndDate,
-                        total_lease_period: editForm.total_lease_period || '15 Years'
+                        lease_end_date: autoEndDate
                       });
                     }}
                   />
@@ -1555,7 +1575,7 @@ export default function PetrolPumpDetail({ currentUser }) {
                   <label className="form-label" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                     <span>Lease End Date</span>
                     <span style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', fontWeight: 500, display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}>
-                      <Lock size={12} /> Auto (15 Years Locked)
+                      <Lock size={12} /> Auto ({parseLeaseYears(editForm.total_lease_period)} Yrs Locked)
                     </span>
                   </label>
                   <input 
@@ -1569,7 +1589,7 @@ export default function PetrolPumpDetail({ currentUser }) {
                       cursor: 'not-allowed',
                       opacity: 0.85
                     }}
-                    title="Lease end date is locked and automatically calculated for 15 years from Lease Start Date"
+                    title={`Lease end date is locked and automatically calculated for ${parseLeaseYears(editForm.total_lease_period)} years from Lease Start Date`}
                   />
                 </div>
               </div>
