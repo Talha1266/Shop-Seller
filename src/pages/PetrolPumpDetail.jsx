@@ -170,7 +170,7 @@ const PetrolPumpReceiptPrint = ({ printData, innerRef, pump, appSettings }) => {
               </p>
             )}
             <h2 style={{ margin: 0, color: '#444', fontSize: '16px', letterSpacing: '1px' }}>
-              PETROL PUMP LEASE RENT RECEIPT
+              LEASE RENT RECEIPT
             </h2>
           </div>
         </div>
