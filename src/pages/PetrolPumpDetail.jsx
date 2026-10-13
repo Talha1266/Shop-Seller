@@ -860,6 +860,20 @@ export default function PetrolPumpDetail({ currentUser }) {
   const [currentMonthDate, setCurrentMonthDate] = useState(new Date());
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [isEditPaymentModalOpen, setIsEditPaymentModalOpen] = useState(false);
+  const [editingPayment, setEditingPayment] = useState(null);
+  const [editPaymentDate, setEditPaymentDate] = useState('');
+  const [editPeriodFrom, setEditPeriodFrom] = useState('');
+  const [editPeriodTo, setEditPeriodTo] = useState('');
+  const [editPaymentAmount, setEditPaymentAmount] = useState('');
+  const [editPaymentMethod, setEditPaymentMethod] = useState('Bank Transfer');
+  const [editChequeNo, setEditChequeNo] = useState('');
+  const [editChequeDate, setEditChequeDate] = useState('');
+  const [editPaymentNotes, setEditPaymentNotes] = useState('');
+  const [editAttachmentFile, setEditAttachmentFile] = useState(null);
+  const [editAttachmentPreview, setEditAttachmentPreview] = useState(null);
+  const [isUploadingEditAttachment, setIsUploadingEditAttachment] = useState(false);
+  const [keepExistingAttachment, setKeepExistingAttachment] = useState(true);
   const [selectedMonthStr, setSelectedMonthStr] = useState('');
   const [paymentAmount, setPaymentAmount] = useState('');
   const [paymentDate, setPaymentDate] = useState(new Date().toISOString().split('T')[0]);
@@ -1372,6 +1386,182 @@ export default function PetrolPumpDetail({ currentUser }) {
     } catch (err) {
       console.error(err);
       alert('Failed to save payment: ' + err.message);
+    }
+  };
+
+  // Handle open edit payment modal
+  const handleOpenEditPayment = (payment) => {
+    if (!payment) return;
+    const enriched = getEnrichedPaymentData(payment);
+    setEditingPayment(enriched);
+    setEditPaymentDate(enriched.date ? new Date(enriched.date).toISOString().split('T')[0] : '');
+    setEditPeriodFrom(enriched.period_from || '');
+    setEditPeriodTo(enriched.period_to || '');
+    setEditPaymentAmount(enriched.amount_paid || '');
+    setEditPaymentMethod(enriched.payment_method || 'Bank Transfer');
+    setEditChequeNo(enriched.cheque_no || '');
+    setEditChequeDate(enriched.cheque_date || '');
+    
+    // Clean notes (remove attachment tag, cheque tag, and duration tag)
+    let userNotes = enriched.notes || '';
+    userNotes = userNotes.replace(/\[Attachment:\s*[^\]]+\]/g, '');
+    userNotes = userNotes.replace(/\[Cheque\s*(?:#|No|Number)?:\s*[^,\]]+,\s*Date:\s*[^\]]+\]/gi, '');
+    userNotes = userNotes.replace(/Duration:\s*\S+\s*to\s*\S+\.?/gi, '');
+    setEditPaymentNotes(userNotes.trim());
+    
+    setEditAttachmentFile(null);
+    setEditAttachmentPreview(null);
+    setIsUploadingEditAttachment(false);
+    setKeepExistingAttachment(true);
+    setIsEditPaymentModalOpen(true);
+  };
+
+  // Preset duration buttons for Edit Payment Modal
+  const handleSetEditPresetDuration = (monthsCount) => {
+    let startYear, startMonth;
+    if (editPeriodFrom) {
+      const parts = editPeriodFrom.split('-').map(Number);
+      startYear = parts[0];
+      startMonth = parts[1] - 1;
+    } else {
+      const now = new Date();
+      startYear = now.getFullYear();
+      startMonth = now.getMonth();
+    }
+    
+    const fromStr = `${startYear}-${String(startMonth + 1).padStart(2, '0')}-01`;
+    setEditPeriodFrom(fromStr);
+
+    const targetEnd = new Date(startYear, startMonth + monthsCount, 0);
+    const endYear = targetEnd.getFullYear();
+    const endMonth = String(targetEnd.getMonth() + 1).padStart(2, '0');
+    const endDay = String(targetEnd.getDate()).padStart(2, '0');
+    
+    setEditPeriodTo(`${endYear}-${endMonth}-${endDay}`);
+    setEditPaymentAmount(currentExpectedMonthlyRent * monthsCount);
+  };
+
+  // Handle edit attachment change
+  const handleEditAttachmentChange = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      if (file.size > 10 * 1024 * 1024) {
+        alert('File size exceeds 10MB limit. Please choose a smaller file.');
+        e.target.value = '';
+        return;
+      }
+      setEditAttachmentFile(file);
+      if (file.type.startsWith('image/')) {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          setEditAttachmentPreview(reader.result);
+        };
+        reader.readAsDataURL(file);
+      } else {
+        setEditAttachmentPreview(null);
+      }
+    }
+  };
+
+  // Submit edit payment
+  const handleUpdatePayment = async (e) => {
+    e.preventDefault();
+    if (!editingPayment || !pump) return;
+
+    if (editPaymentMethod === 'Cheque') {
+      if (!editChequeNo || !editChequeNo.trim()) {
+        alert('Cheque Number is compulsory for Cheque payments.');
+        return;
+      }
+      if (!editChequeDate) {
+        alert('Cheque Date is compulsory for Cheque payments.');
+        return;
+      }
+    }
+
+    try {
+      let finalAttachmentPath = keepExistingAttachment ? getAttachmentPath(editingPayment) : null;
+      
+      if (editAttachmentFile) {
+        setIsUploadingEditAttachment(true);
+        const fileExt = editAttachmentFile.name.split('.').pop();
+        const cleanFileName = `cheque_${pump.id}_${Date.now()}.${fileExt}`;
+        const filePath = `petrol_pumps/cheques/${cleanFileName}`;
+
+        try {
+          const { error: uploadError } = await supabase.storage
+            .from('tenant-documents')
+            .upload(filePath, editAttachmentFile, { upsert: true });
+
+          if (!uploadError) {
+            finalAttachmentPath = filePath;
+          } else {
+            console.warn('Storage upload error, continuing:', uploadError);
+          }
+        } catch (uploadErr) {
+          console.warn('Failed to upload file to storage:', uploadErr);
+        } finally {
+          setIsUploadingEditAttachment(false);
+        }
+      }
+
+      const durationLabel = (editPeriodFrom && editPeriodTo)
+        ? `${editPeriodFrom} to ${editPeriodTo}`
+        : editingPayment.month;
+
+      const chequeNotes = editPaymentMethod === 'Cheque' ? `[Cheque #: ${editChequeNo.trim()}, Date: ${editChequeDate}]` : '';
+      const combinedNotes = [
+        chequeNotes,
+        finalAttachmentPath ? `[Attachment: ${finalAttachmentPath}]` : '',
+        editPaymentNotes ? editPaymentNotes.trim() : ''
+      ].filter(Boolean).join(' ');
+
+      const updates = {
+        month: durationLabel,
+        amount_paid: Number(editPaymentAmount),
+        date: editPaymentDate,
+        payment_method: editPaymentMethod,
+        cheque_no: editPaymentMethod === 'Cheque' ? editChequeNo.trim() : null,
+        cheque_date: editPaymentMethod === 'Cheque' ? editChequeDate : null,
+        notes: combinedNotes,
+        period_from: editPeriodFrom,
+        period_to: editPeriodTo,
+        attachment_url: finalAttachmentPath
+      };
+
+      try {
+        await db.petrol_pump_rent_collections.update(editingPayment.id, updates);
+      } catch (updateErr) {
+        // Fallback if schema doesn't have certain columns
+        if (updateErr.message && (
+          updateErr.message.includes('attachment_url') || 
+          updateErr.message.includes('period_from') || 
+          updateErr.message.includes('period_to') || 
+          updateErr.message.includes('cheque_no') || 
+          updateErr.message.includes('cheque_date') || 
+          updateErr.code === '42703'
+        )) {
+          const fallbackUpdates = {
+            month: durationLabel,
+            amount_paid: Number(editPaymentAmount),
+            date: editPaymentDate,
+            payment_method: editPaymentMethod,
+            notes: `${combinedNotes} Duration: ${editPeriodFrom} to ${editPeriodTo}.`.trim()
+          };
+          await db.petrol_pump_rent_collections.update(editingPayment.id, fallbackUpdates);
+        } else {
+          throw updateErr;
+        }
+      }
+
+      setIsEditPaymentModalOpen(false);
+      setEditingPayment(null);
+      setEditAttachmentFile(null);
+      setEditAttachmentPreview(null);
+      alert('Rent payment record updated successfully!');
+    } catch (err) {
+      console.error(err);
+      alert('Failed to update payment: ' + err.message);
     }
   };
 
@@ -1972,7 +2162,15 @@ export default function PetrolPumpDetail({ currentUser }) {
 
               <div>
                 {currentMonthPayment ? (
-                  <div style={{ display: 'flex', gap: '0.5rem' }}>
+                  <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                    <button 
+                      className="btn btn-secondary btn-sm"
+                      onClick={() => handleOpenEditPayment(currentMonthPayment)}
+                      style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', color: '#d97706', borderColor: '#fef3c7', backgroundColor: '#fffbeb' }}
+                      title="Edit Payment"
+                    >
+                      <Edit3 size={15} /> Edit Payment
+                    </button>
                     <button 
                       className="btn btn-primary btn-sm"
                       onClick={() => handlePrintExistingReceipt(currentMonthPayment)}
@@ -2085,6 +2283,14 @@ export default function PetrolPumpDetail({ currentUser }) {
                           </td>
                           <td style={{ padding: '0.75rem', textAlign: 'center' }}>
                             <div style={{ display: 'flex', justifyContent: 'center', gap: '0.5rem' }}>
+                              <button 
+                                className="btn btn-secondary btn-sm"
+                                onClick={() => handleOpenEditPayment(col)}
+                                style={{ color: '#d97706' }}
+                                title="Edit Rent Payment Record"
+                              >
+                                <Edit3 size={14} />
+                              </button>
                               <button 
                                 className="btn btn-secondary btn-sm"
                                 onClick={() => handlePrintExistingReceipt(col)}
@@ -2342,6 +2548,277 @@ export default function PetrolPumpDetail({ currentUser }) {
                 <button type="button" className="btn btn-secondary" onClick={() => setIsPaymentModalOpen(false)}>Cancel</button>
                 <button type="submit" className="btn btn-primary" disabled={isUploadingAttachment}>
                   {isUploadingAttachment ? 'Uploading Photo...' : 'Save & Print Receipt'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Petrol Pump Rent Payment Modal */}
+      {isEditPaymentModalOpen && editingPayment && (
+        <div className="modal-overlay" onClick={() => setIsEditPaymentModalOpen(false)}>
+          <div className="modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: '520px', maxHeight: '90vh', overflowY: 'auto' }}>
+            <div className="modal-header">
+              <h2 className="modal-title" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <Edit3 size={18} /> Edit Petrol Pump Rent Payment
+              </h2>
+              <button className="icon-btn" onClick={() => setIsEditPaymentModalOpen(false)}><X size={20} /></button>
+            </div>
+            <form onSubmit={handleUpdatePayment}>
+              {/* Info banner */}
+              <div style={{ padding: '0.75rem 1rem', backgroundColor: 'var(--color-bg-app)', borderRadius: '8px', border: '1px solid var(--color-border)', marginBottom: '1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem' }}>
+                <div>
+                  <span style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Receipt #</span>
+                  <div style={{ fontWeight: 700, fontSize: '0.95rem' }}>{editingPayment.receipt_no}</div>
+                </div>
+                <div style={{ textAlign: 'right' }}>
+                  <span style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Site</span>
+                  <div style={{ fontWeight: 600, fontSize: '0.95rem', color: 'var(--color-primary)' }}>{pump.name}</div>
+                </div>
+              </div>
+
+              {/* Quick Preset Duration Buttons */}
+              <div style={{ marginBottom: '1rem' }}>
+                <label className="form-label" style={{ marginBottom: '0.4rem', display: 'block', fontSize: '0.825rem', fontWeight: 600 }}>
+                  Adjust Rent Duration Preset:
+                </label>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '0.5rem' }}>
+                  <button 
+                    type="button" 
+                    className="btn btn-secondary btn-sm"
+                    onClick={() => handleSetEditPresetDuration(1)}
+                    style={{ fontSize: '0.8rem', padding: '0.4rem 0.2rem', textAlign: 'center' }}
+                  >
+                    1 Month
+                  </button>
+                  <button 
+                    type="button" 
+                    className="btn btn-secondary btn-sm"
+                    onClick={() => handleSetEditPresetDuration(3)}
+                    style={{ fontSize: '0.8rem', padding: '0.4rem 0.2rem', textAlign: 'center' }}
+                  >
+                    3 Months
+                  </button>
+                  <button 
+                    type="button" 
+                    className="btn btn-secondary btn-sm"
+                    onClick={() => handleSetEditPresetDuration(6)}
+                    style={{ fontSize: '0.8rem', padding: '0.4rem 0.2rem', textAlign: 'center' }}
+                  >
+                    6 Months
+                  </button>
+                  <button 
+                    type="button" 
+                    className="btn btn-secondary btn-sm"
+                    onClick={() => handleSetEditPresetDuration(12)}
+                    style={{ fontSize: '0.8rem', padding: '0.4rem 0.2rem', textAlign: 'center' }}
+                  >
+                    1 Year
+                  </button>
+                </div>
+              </div>
+
+              {/* Duration From & To */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem', marginBottom: '1rem' }}>
+                <div className="form-group" style={{ margin: 0 }}>
+                  <label className="form-label">Period From</label>
+                  <input 
+                    type="date" 
+                    className="input-field" 
+                    value={editPeriodFrom}
+                    onChange={(e) => setEditPeriodFrom(e.target.value)}
+                    required 
+                  />
+                </div>
+                <div className="form-group" style={{ margin: 0 }}>
+                  <label className="form-label">Period To</label>
+                  <input 
+                    type="date" 
+                    className="input-field" 
+                    value={editPeriodTo}
+                    onChange={(e) => setEditPeriodTo(e.target.value)}
+                    required 
+                  />
+                </div>
+              </div>
+
+              {/* Payment Date & Amount */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem', marginBottom: '1rem' }}>
+                <div className="form-group" style={{ margin: 0 }}>
+                  <label className="form-label">Payment Date</label>
+                  <input 
+                    type="date" 
+                    className="input-field" 
+                    value={editPaymentDate}
+                    onChange={(e) => setEditPaymentDate(e.target.value)}
+                    required 
+                  />
+                </div>
+                <div className="form-group" style={{ margin: 0 }}>
+                  <label className="form-label">Amount Paid (Rs.)</label>
+                  <input 
+                    type="number" 
+                    className="input-field" 
+                    value={editPaymentAmount}
+                    onChange={(e) => setEditPaymentAmount(e.target.value)}
+                    required 
+                    min="1"
+                    step="0.01"
+                  />
+                </div>
+              </div>
+
+              {/* Payment Method */}
+              <div className="form-group" style={{ marginBottom: '1rem' }}>
+                <label className="form-label">Payment Method</label>
+                <select 
+                  className="input-field"
+                  value={editPaymentMethod}
+                  onChange={(e) => setEditPaymentMethod(e.target.value)}
+                >
+                  <option value="Bank Transfer">Bank Transfer</option>
+                  <option value="Cheque">Cheque</option>
+                  <option value="Cash">Cash</option>
+                  <option value="Online">Online Deposit</option>
+                </select>
+              </div>
+
+              {/* Compulsory Cheque Fields if Cheque */}
+              {editPaymentMethod === 'Cheque' && (
+                <div style={{ 
+                  display: 'grid', 
+                  gridTemplateColumns: '1fr 1fr', 
+                  gap: '0.75rem', 
+                  marginBottom: '1rem', 
+                  padding: '0.85rem', 
+                  backgroundColor: '#eff6ff', 
+                  borderRadius: '8px', 
+                  border: '1px solid #bfdbfe' 
+                }}>
+                  <div className="form-group" style={{ margin: 0 }}>
+                    <label className="form-label" style={{ fontWeight: 600, color: '#1e40af', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      Cheque Number <span style={{ color: '#dc2626' }}>*</span>
+                    </label>
+                    <input 
+                      type="text" 
+                      name="cheque_no" 
+                      className="input-field" 
+                      required 
+                      value={editChequeNo} 
+                      onChange={e => setEditChequeNo(e.target.value)} 
+                      placeholder="e.g. CHQ-556677" 
+                      style={{ borderColor: '#93c5fd', backgroundColor: '#ffffff' }}
+                    />
+                  </div>
+                  <div className="form-group" style={{ margin: 0 }}>
+                    <label className="form-label" style={{ fontWeight: 600, color: '#1e40af', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      Cheque Date <span style={{ color: '#dc2626' }}>*</span>
+                    </label>
+                    <input 
+                      type="date" 
+                      name="cheque_date" 
+                      className="input-field" 
+                      required 
+                      value={editChequeDate} 
+                      onChange={e => setEditChequeDate(e.target.value)} 
+                      style={{ borderColor: '#93c5fd', backgroundColor: '#ffffff' }}
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* Picture Attachment section */}
+              {(editPaymentMethod === 'Cheque' || editPaymentMethod === 'Online' || editPaymentMethod === 'Bank Transfer') && (
+                <div style={{ 
+                  marginBottom: '1.25rem', 
+                  padding: '0.85rem', 
+                  borderRadius: '8px', 
+                  border: '1px dashed var(--color-primary)', 
+                  backgroundColor: 'rgba(59, 130, 246, 0.04)' 
+                }}>
+                  <label className="form-label" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.4rem', fontWeight: 600 }}>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                      <Paperclip size={16} color="var(--color-primary)" />
+                      {editPaymentMethod === 'Cheque' ? 'Picture of Cheque' : 'Picture of Receipt / Slip'}
+                    </span>
+                    <span style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>JPG, PNG up to 10MB</span>
+                  </label>
+
+                  {/* Show existing attachment if present */}
+                  {keepExistingAttachment && getAttachmentPath(editingPayment) && !editAttachmentFile && (
+                    <div style={{ marginBottom: '0.75rem', padding: '0.5rem', backgroundColor: '#fff', borderRadius: '6px', border: '1px solid var(--color-border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.825rem' }}>
+                        <Paperclip size={14} color="var(--color-primary)" />
+                        <span style={{ color: 'var(--color-primary)', fontWeight: 500 }}>Existing Attached Document</span>
+                      </div>
+                      <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                        <button
+                          type="button"
+                          className="btn btn-secondary btn-sm"
+                          onClick={() => handleOpenAttachmentViewer(editingPayment)}
+                          style={{ padding: '0.2rem 0.5rem', fontSize: '0.75rem' }}
+                        >
+                          View
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setKeepExistingAttachment(false)}
+                          style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '0.75rem', textDecoration: 'underline' }}
+                        >
+                          Remove
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  <input 
+                    type="file" 
+                    accept="image/*,.pdf" 
+                    className="input-field" 
+                    onChange={handleEditAttachmentChange}
+                    style={{ fontSize: '0.85rem' }} 
+                  />
+                  {editAttachmentPreview && (
+                    <div style={{ marginTop: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                      <img 
+                        src={editAttachmentPreview} 
+                        alt="New Cheque Preview" 
+                        style={{ maxHeight: '80px', maxWidth: '140px', objectFit: 'contain', borderRadius: '6px', border: '1px solid var(--color-border)', backgroundColor: '#fff' }} 
+                      />
+                      <div>
+                        <span style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)', display: 'block', maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {editAttachmentFile?.name}
+                        </span>
+                        <button 
+                          type="button" 
+                          onClick={() => { setEditAttachmentFile(null); setEditAttachmentPreview(null); }}
+                          style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '0.75rem', padding: 0, textDecoration: 'underline' }}
+                        >
+                          Cancel new file
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Notes / Transaction Reference */}
+              <div className="form-group" style={{ marginBottom: '1.5rem' }}>
+                <label className="form-label">Notes / Transaction Reference (Optional)</label>
+                <input 
+                  type="text" 
+                  className="input-field" 
+                  value={editPaymentNotes}
+                  onChange={(e) => setEditPaymentNotes(e.target.value)}
+                  placeholder="e.g. Cheque #12345 or Bank Ref" 
+                />
+              </div>
+
+              <div className="modal-footer">
+                <button type="button" className="btn btn-secondary" onClick={() => setIsEditPaymentModalOpen(false)}>Cancel</button>
+                <button type="submit" className="btn btn-primary" disabled={isUploadingEditAttachment}>
+                  {isUploadingEditAttachment ? 'Uploading Photo...' : 'Save Changes'}
                 </button>
               </div>
             </form>
