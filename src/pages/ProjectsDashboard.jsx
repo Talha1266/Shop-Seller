@@ -7,7 +7,7 @@ import {
   Building2, Fuel, Store, Users, DollarSign, ChevronRight, 
   Plus, X, Trash2, MapPin, Maximize, Calendar, Clock, TrendingUp 
 } from 'lucide-react';
-import { getPumpIntervalYears, cleanGracePeriod } from './PetrolPumpDetail';
+import { getPumpIntervalYears, getPumpFixedRentYears, cleanGracePeriod } from './PetrolPumpDetail';
 
 export default function ProjectsDashboard() {
   const navigate = useNavigate();
@@ -33,6 +33,7 @@ export default function ProjectsDashboard() {
     lease_end_date: '',
     grace_period: '',
     monthly_rent: '',
+    fixed_rent_years: '3',
     annual_increase_pct: '',
     increase_interval_years: '3'
   });
@@ -124,6 +125,10 @@ export default function ProjectsDashboard() {
     }
 
     try {
+      const rawGrace = cleanGracePeriod(pumpForm.grace_period);
+      const intervalVal = Number(pumpForm.increase_interval_years) || 1;
+      const fixedVal = Number(pumpForm.fixed_rent_years) || 1;
+
       const newPump = {
         name: pumpForm.name.trim(),
         location: pumpForm.location.trim(),
@@ -132,23 +137,24 @@ export default function ProjectsDashboard() {
         total_lease_period: pumpForm.total_lease_period.trim(),
         lease_start_date: pumpForm.lease_start_date || null,
         lease_end_date: pumpForm.lease_end_date || null,
-        grace_period: pumpForm.grace_period.trim(),
+        grace_period: rawGrace || '',
         monthly_rent: Number(pumpForm.monthly_rent) || 0,
+        fixed_rent_years: fixedVal,
         annual_increase_pct: Number(pumpForm.annual_increase_pct) || 0,
-        increase_interval_years: Number(pumpForm.increase_interval_years) || 1
+        increase_interval_years: intervalVal
       };
 
       let pumpId;
       try {
         pumpId = await db.petrol_pumps.add(newPump);
       } catch (addErr) {
-        if (addErr.message && (addErr.message.includes('increase_interval_years') || addErr.code === '42703')) {
-          const rawGrace = cleanGracePeriod(pumpForm.grace_period);
-          const intervalVal = Number(pumpForm.increase_interval_years) || 1;
+        if (addErr.message && (addErr.message.includes('fixed_rent_years') || addErr.message.includes('increase_interval_years') || addErr.code === '42703')) {
+          const metaString = `[FixedYears: ${fixedVal}] [Interval: ${intervalVal}]`;
           const fallbackPump = { 
             ...newPump,
-            grace_period: rawGrace ? `${rawGrace} [Interval: ${intervalVal}]` : `[Interval: ${intervalVal}]`
+            grace_period: rawGrace ? `${rawGrace} ${metaString}` : metaString
           };
+          delete fallbackPump.fixed_rent_years;
           delete fallbackPump.increase_interval_years;
           pumpId = await db.petrol_pumps.add(fallbackPump);
         } else {
@@ -167,6 +173,7 @@ export default function ProjectsDashboard() {
         lease_end_date: '',
         grace_period: '',
         monthly_rent: '',
+        fixed_rent_years: '3',
         annual_increase_pct: '',
         increase_interval_years: '3'
       });
@@ -449,6 +456,9 @@ export default function ProjectsDashboard() {
                         <p style={{ fontSize: '1.15rem', fontWeight: 700, margin: 0 }}>
                           +{pump.annual_increase_pct || 0}% / {getPumpIntervalYears(pump) > 1 ? `${getPumpIntervalYears(pump)} yrs` : 'yr'}
                         </p>
+                        <p style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)', margin: '0.15rem 0 0 0' }}>
+                          Fixed 1st {getPumpFixedRentYears(pump)} yr{getPumpFixedRentYears(pump) > 1 ? 's' : ''}
+                        </p>
                       </div>
                     </div>
 
@@ -610,7 +620,7 @@ export default function ProjectsDashboard() {
                 </div>
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr 1fr', gap: '1rem', marginBottom: '0.75rem' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
                 <div className="form-group">
                   <label className="form-label">Starting Monthly Rent (Rs.) *</label>
                   <input 
@@ -624,6 +634,22 @@ export default function ProjectsDashboard() {
                 </div>
 
                 <div className="form-group">
+                  <label className="form-label">Rent Fixed For (Years) *</label>
+                  <input 
+                    type="number" 
+                    className="input-field" 
+                    min="1"
+                    step="1"
+                    value={pumpForm.fixed_rent_years}
+                    onChange={e => setPumpForm({ ...pumpForm, fixed_rent_years: e.target.value })}
+                    placeholder="e.g. 3" 
+                    required 
+                  />
+                </div>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '0.75rem' }}>
+                <div className="form-group">
                   <label className="form-label">Increase Rate (%) *</label>
                   <input 
                     type="number" 
@@ -636,7 +662,7 @@ export default function ProjectsDashboard() {
                 </div>
 
                 <div className="form-group">
-                  <label className="form-label">Increase Every (Years) *</label>
+                  <label className="form-label">Subsequent Increase Every (Years) *</label>
                   <input 
                     type="number" 
                     className="input-field" 
@@ -650,7 +676,7 @@ export default function ProjectsDashboard() {
                 </div>
               </div>
               <p style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', margin: '0 0 1.5rem 0' }}>
-                E.g. 10% increase every 3 years according to lease agreement.
+                Rent will remain fixed for the first {pumpForm.fixed_rent_years || 1} year{Number(pumpForm.fixed_rent_years || 1) > 1 ? 's' : ''}, and then increment by {pumpForm.annual_increase_pct || 0}% every {pumpForm.increase_interval_years || 1} year{Number(pumpForm.increase_interval_years || 1) > 1 ? 's' : ''}.
               </p>
 
               <div className="modal-footer">
