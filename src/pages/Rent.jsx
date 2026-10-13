@@ -754,7 +754,7 @@ export default function Rent({ currentUser }) {
           <button
             className="btn btn-secondary"
             onClick={handlePrintRentReport}
-            style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}
+            style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', backgroundColor: '#eff6ff', color: 'var(--color-primary)', borderColor: '#bfdbfe', fontWeight: 600 }}
             title="Print Monthly Rent & Maintenance Report"
           >
             <Printer size={18} /> Print Rent Report

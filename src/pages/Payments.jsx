@@ -550,7 +550,7 @@ export default function Payments({ currentUser }) {
           <button 
             className="btn btn-secondary" 
             onClick={handlePrintAllPayments}
-            style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}
+            style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', backgroundColor: '#eff6ff', color: 'var(--color-primary)', borderColor: '#bfdbfe', fontWeight: 600 }}
             title="Print All Shops Payment & Collection Report"
           >
             <Printer size={18} /> Print Payments Report

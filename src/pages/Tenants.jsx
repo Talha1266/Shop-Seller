@@ -673,7 +673,7 @@ export default function Tenants({ currentUser }) {
           <button 
             className="btn btn-secondary" 
             onClick={handlePrintAllTenants}
-            style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}
+            style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', backgroundColor: '#eff6ff', color: 'var(--color-primary)', borderColor: '#bfdbfe', fontWeight: 600 }}
             title="Print Full Tenants Directory Report"
           >
             <Printer size={18} /> Print Tenants List
