@@ -6,7 +6,7 @@ import { useSupabase } from '../hooks/useSupabase';
 import { 
   Fuel, ArrowLeft, Calendar, MapPin, Maximize, FileText, 
   TrendingUp, DollarSign, CheckCircle2, Clock, Printer, 
-  Plus, Trash2, Edit3, X, AlertCircle, Paperclip, Download
+  Plus, Trash2, Edit3, X, AlertCircle, Paperclip, Download, Lock
 } from 'lucide-react';
 import { useReactToPrint } from 'react-to-print';
 
@@ -365,9 +365,9 @@ export default function PetrolPumpDetail({ currentUser }) {
         location: pump.location || '',
         total_area: pump.total_area || '',
         lease_deed_reg_date: pump.lease_deed_reg_date || '',
-        total_lease_period: pump.total_lease_period || '',
+        total_lease_period: pump.total_lease_period || '15 Years',
         lease_start_date: pump.lease_start_date || '',
-        lease_end_date: pump.lease_end_date || '',
+        lease_end_date: pump.lease_end_date || (pump.lease_start_date ? calculateLeaseEndDate(pump.lease_start_date, 15) : ''),
         grace_period: cleanGracePeriod(pump.grace_period),
         monthly_rent: pump.monthly_rent || '',
         fixed_rent_years: getPumpFixedRentYears(pump),
@@ -1550,7 +1550,7 @@ export default function PetrolPumpDetail({ currentUser }) {
                       setEditForm({ 
                         ...editForm, 
                         lease_start_date: startDate,
-                        lease_end_date: autoEndDate || editForm.lease_end_date,
+                        lease_end_date: autoEndDate,
                         total_lease_period: editForm.total_lease_period || '15 Years'
                       });
                     }}
@@ -1558,14 +1558,24 @@ export default function PetrolPumpDetail({ currentUser }) {
                 </div>
 
                 <div className="form-group">
-                  <label className="form-label">
-                    Lease End Date <span style={{ fontSize: '0.75rem', color: 'var(--color-primary)', fontWeight: 500 }}>(15 Years Auto-calculated)</span>
+                  <label className="form-label" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <span>Lease End Date</span>
+                    <span style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', fontWeight: 500, display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}>
+                      <Lock size={12} /> Auto (15 Years Locked)
+                    </span>
                   </label>
                   <input 
                     type="date" 
                     className="input-field" 
                     value={editForm.lease_end_date}
-                    onChange={e => setEditForm({ ...editForm, lease_end_date: e.target.value })}
+                    readOnly
+                    disabled
+                    style={{ 
+                      backgroundColor: 'var(--color-bg-secondary, #f1f5f9)', 
+                      cursor: 'not-allowed',
+                      opacity: 0.85
+                    }}
+                    title="Lease end date is locked and automatically calculated for 15 years from Lease Start Date"
                   />
                 </div>
               </div>

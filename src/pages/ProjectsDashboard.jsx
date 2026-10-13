@@ -5,7 +5,7 @@ import { useSupabase } from '../hooks/useSupabase';
 import { useDb } from '../hooks/useDb';
 import { 
   Building2, Fuel, Store, Users, DollarSign, ChevronRight, 
-  Plus, X, Trash2, MapPin, Maximize, Calendar, Clock, TrendingUp 
+  Plus, X, Trash2, MapPin, Maximize, Calendar, Clock, TrendingUp, Lock 
 } from 'lucide-react';
 import { getPumpIntervalYears, getPumpFixedRentYears, cleanGracePeriod, calculateLeaseEndDate } from './PetrolPumpDetail';
 
@@ -611,7 +611,7 @@ export default function ProjectsDashboard() {
                       setPumpForm({ 
                         ...pumpForm, 
                         lease_start_date: startDate,
-                        lease_end_date: autoEndDate || pumpForm.lease_end_date,
+                        lease_end_date: autoEndDate,
                         total_lease_period: pumpForm.total_lease_period || '15 Years'
                       });
                     }}
@@ -619,14 +619,24 @@ export default function ProjectsDashboard() {
                 </div>
 
                 <div className="form-group">
-                  <label className="form-label">
-                    Lease End Date <span style={{ fontSize: '0.75rem', color: 'var(--color-primary)', fontWeight: 500 }}>(15 Years Auto-calculated)</span>
+                  <label className="form-label" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <span>Lease End Date</span>
+                    <span style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', fontWeight: 500, display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}>
+                      <Lock size={12} /> Auto (15 Years Locked)
+                    </span>
                   </label>
                   <input 
                     type="date" 
                     className="input-field" 
                     value={pumpForm.lease_end_date}
-                    onChange={e => setPumpForm({ ...pumpForm, lease_end_date: e.target.value })}
+                    readOnly
+                    disabled
+                    style={{ 
+                      backgroundColor: 'var(--color-bg-secondary, #f1f5f9)', 
+                      cursor: 'not-allowed',
+                      opacity: 0.85
+                    }}
+                    title="Lease end date is locked and automatically calculated for 15 years from Lease Start Date"
                   />
                 </div>
               </div>
