@@ -92,6 +92,12 @@ const RentReceiptPrint = ({ printData, innerRef, projectName, appSettings }) => 
                 <td style={{ padding: '12px 0', borderBottom: '1px solid #eee', textAlign: 'right' }}>Rs. {printData.fineAmount?.toLocaleString()}</td>
               </tr>
             )}
+            {printData.fineWaived && (
+              <tr>
+                <td style={{ padding: '12px 0', borderBottom: '1px solid #eee', color: '#16a34a' }}>Late Fine (Waived / معافی)</td>
+                <td style={{ padding: '12px 0', borderBottom: '1px solid #eee', textAlign: 'right', color: '#16a34a', fontWeight: 600 }}>Rs. 0 (Waived)</td>
+              </tr>
+            )}
             <tr>
               <td style={{ padding: '12px 0', fontWeight: 'bold' }}>Total Amount Paid</td>
               <td style={{ padding: '12px 0', textAlign: 'right', fontWeight: 'bold', fontSize: '1.2em' }}>Rs. {printData.amount_paid?.toLocaleString()}</td>
@@ -343,6 +349,8 @@ export default function Rent({ currentUser }) {
   const [isUploadingAttachment, setIsUploadingAttachment] = useState(false);
   const [viewingAttachmentUrl, setViewingAttachmentUrl] = useState(null);
   const [viewingAttachmentTitle, setViewingAttachmentTitle] = useState('');
+  const [isFineWaived, setIsFineWaived] = useState(false);
+  const [customFine, setCustomFine] = useState(null);
 
   const requestSort = (key) => {
     let direction = 'asc';
@@ -619,14 +627,20 @@ export default function Rent({ currentUser }) {
       return;
     }
 
-    const currentFine = calculateFine(selectedMonthString, paymentDate);
+    const calculatedFine = calculateFine(selectedMonthString, paymentDate);
+    const currentFine = isFineWaived ? 0 : (customFine !== null ? customFine : calculatedFine);
     const receiptNo = formData.get('receipt_no') || generateReceiptNo();
 
-    // Notes can include fine info if we don't strictly have a fine column
+    // Notes can include fine info or fine waiver (maafi) info
     let notes = formData.get('notes') || '';
-    if (currentFine > 0) {
-      notes = `Includes Rs. ${currentFine} late fine. ` + notes;
+    if (isFineWaived || (calculatedFine > 0 && currentFine === 0)) {
+      notes = `[Late Fine of Rs. ${calculatedFine.toLocaleString()} Waived (Fine Maafi) by Admin] ` + notes;
+    } else if (calculatedFine > 0 && currentFine < calculatedFine) {
+      notes = `[Fine Partial Maafi: Reduced from Rs. ${calculatedFine.toLocaleString()} to Rs. ${currentFine.toLocaleString()}] ` + notes;
+    } else if (currentFine > 0) {
+      notes = `Includes Rs. ${currentFine.toLocaleString()} late fine. ` + notes;
     }
+
     let uploadedPath = null;
     if (attachmentFile) {
       setIsUploadingAttachment(true);
@@ -655,11 +669,18 @@ export default function Rent({ currentUser }) {
       notes = `[Attachment: ${uploadedPath}] ` + notes;
     }
 
+    const baseAmountPaid = currentFine > 0
+      ? (amount > selectedSale.balance ? selectedSale.balance : amount)
+      : amount;
+    const fineAmountPaid = currentFine > 0
+      ? (amount > selectedSale.balance ? amount - selectedSale.balance : 0)
+      : 0;
+
     const newPayment = {
       sale_id: selectedSale.id,
       month: selectedMonthString,
-      amount_paid: amount > selectedSale.balance && currentFine > 0 ? selectedSale.balance : amount, // allocate to base rent first
-      fine_amount: amount > selectedSale.balance && currentFine > 0 ? amount - selectedSale.balance : 0,
+      amount_paid: baseAmountPaid,
+      fine_amount: fineAmountPaid,
       date: formData.get('date'),
       receipt_no: receiptNo,
       payment_method: paymentMethod,
@@ -675,8 +696,8 @@ export default function Rent({ currentUser }) {
           const fallbackPayment = {
             sale_id: selectedSale.id,
             month: selectedMonthString,
-            amount_paid: amount > selectedSale.balance && currentFine > 0 ? selectedSale.balance : amount,
-            fine_amount: amount > selectedSale.balance && currentFine > 0 ? amount - selectedSale.balance : 0,
+            amount_paid: baseAmountPaid,
+            fine_amount: fineAmountPaid,
             date: formData.get('date'),
             receipt_no: receiptNo,
             notes: `[Method: ${paymentMethod}] ` + notes
@@ -693,18 +714,45 @@ export default function Rent({ currentUser }) {
         tenantName: getTenantDetails(selectedSale.tenantId),
         shopDetails: getShopDetails(selectedSale.shopId),
         month: selectedMonthString,
-        rentAmount: selectedSale.balance,
-        fineAmount: currentFine,
+        rentAmount: baseAmountPaid,
+        fineAmount: fineAmountPaid,
+        fineWaived: isFineWaived || (calculatedFine > 0 && currentFine === 0),
+        originalFine: calculatedFine,
         amount_paid: amount,
         payment_method: paymentMethod
       });
 
       setAttachmentFile(null);
       setAttachmentPreview(null);
+      setIsFineWaived(false);
+      setCustomFine(null);
       setIsModalOpen(false);
       setSelectedSale(null);
     } catch (err) {
       alert("Error saving rent payment: " + err.message);
+    }
+  };
+
+  const handleWaiveExistingFine = async (pmt) => {
+    const fineVal = parseFloat(pmt.fine_amount || 0);
+    if (fineVal <= 0) return;
+
+    const confirmed = window.confirm(
+      `Confirm Fine Maafi:\n\nDo you want to remove / waive the late fine of Rs. ${fineVal.toLocaleString()} for Receipt #${pmt.receipt_no}?\n\nThis will set the fine to Rs. 0 (Fine Maafi) and update the records.`
+    );
+    if (!confirmed) return;
+
+    try {
+      let updatedNotes = pmt.notes || '';
+      updatedNotes = `[Fine of Rs. ${fineVal.toLocaleString()} Waived (Fine Maafi) by Admin on ${new Date().toLocaleDateString()}] ` + updatedNotes;
+
+      await db.rent_collections.update(pmt.id, {
+        fine_amount: 0,
+        notes: updatedNotes
+      });
+      alert(`Fine of Rs. ${fineVal.toLocaleString()} has been removed successfully (Fine Maafi applied).`);
+    } catch (err) {
+      alert("Error waiving fine: " + err.message);
     }
   };
 
@@ -814,6 +862,14 @@ export default function Rent({ currentUser }) {
                     </td>
                     <td style={{ fontWeight: 600, color: sale.balance > 0 ? '#ef4444' : '#10b981' }}>
                       Rs. {sale.balance.toLocaleString()}
+                      {sale.balance > 0 && (() => {
+                        const overdueFine = calculateFine(selectedMonthString, new Date().toISOString().split('T')[0]);
+                        return overdueFine > 0 ? (
+                          <div style={{ fontSize: '0.75rem', fontWeight: 500, color: '#ef4444', marginTop: '2px' }}>
+                            + Rs. {overdueFine.toLocaleString()} late fine
+                          </div>
+                        ) : null;
+                      })()}
                     </td>
                     <td>
                       <span className={`status-badge ${
@@ -837,7 +893,13 @@ export default function Rent({ currentUser }) {
                         <button 
                           className="btn btn-primary"
                           style={{ padding: '0.25rem 0.5rem', fontSize: '0.875rem' }}
-                          onClick={() => { setSelectedSale(sale); setPaymentDate(new Date().toISOString().split('T')[0]); setIsModalOpen(true); }}
+                          onClick={() => { 
+                            setSelectedSale(sale); 
+                            setPaymentDate(new Date().toISOString().split('T')[0]); 
+                            setIsFineWaived(false);
+                            setCustomFine(null);
+                            setIsModalOpen(true); 
+                          }}
                           disabled={sale.status === 'Paid'}
                         >
                           <DollarSign size={14} /> Receive
@@ -853,8 +915,9 @@ export default function Rent({ currentUser }) {
       </div>
 
       {isModalOpen && selectedSale && (() => {
-        const currentFine = calculateFine(selectedMonthString, paymentDate);
-        const totalDue = selectedSale.balance + currentFine;
+        const autoFine = calculateFine(selectedMonthString, paymentDate);
+        const effectiveFine = isFineWaived ? 0 : (customFine !== null ? customFine : autoFine);
+        const totalDue = selectedSale.balance + effectiveFine;
         
         return (
           <div className="modal-overlay" onClick={() => { setIsModalOpen(false); setSelectedSale(null); }}>
@@ -871,16 +934,102 @@ export default function Rent({ currentUser }) {
                     <p style={{ margin: 0, fontSize: '0.875rem' }}>Base Rent Due:</p>
                     <p style={{ margin: 0, fontSize: '0.875rem', fontWeight: 600 }}>Rs. {selectedSale.balance.toLocaleString()}</p>
                   </div>
-                  {currentFine > 0 && (
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '0.25rem' }}>
-                      <p style={{ margin: 0, fontSize: '0.875rem', color: '#ef4444' }}>Late Fine:</p>
-                      <p style={{ margin: 0, fontSize: '0.875rem', fontWeight: 600, color: '#ef4444' }}>Rs. {currentFine.toLocaleString()}</p>
+                  {autoFine > 0 && (
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '0.25rem', alignItems: 'center' }}>
+                      <p style={{ margin: 0, fontSize: '0.875rem', color: isFineWaived ? '#059669' : '#ef4444' }}>
+                        Late Fine ({Math.ceil(autoFine / 100)} days @ Rs. 100/day):
+                      </p>
+                      <p style={{ margin: 0, fontSize: '0.875rem', fontWeight: 600, color: isFineWaived ? '#059669' : '#ef4444' }}>
+                        {isFineWaived ? 'Rs. 0 (Waived / معاف)' : `Rs. ${effectiveFine.toLocaleString()}`}
+                      </p>
                     </div>
                   )}
                   <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '0.5rem', borderTop: '2px solid #e2e8f0', paddingTop: '0.5rem' }}>
                     <p style={{ margin: 0, fontSize: '0.875rem', fontWeight: 'bold' }}>Total Payable:</p>
                     <p style={{ margin: 0, fontSize: '0.875rem', fontWeight: 'bold', color: '#10b981' }}>Rs. {totalDue.toLocaleString()}</p>
                   </div>
+
+                  {/* Admin Fine Removal / Maafi Section */}
+                  {autoFine > 0 && (
+                    <div style={{
+                      marginTop: '0.75rem',
+                      padding: '0.75rem',
+                      borderRadius: '6px',
+                      backgroundColor: isFineWaived ? '#ecfdf5' : '#fff7ed',
+                      border: `1px solid ${isFineWaived ? '#a7f3d0' : '#fed7aa'}`
+                    }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem' }}>
+                        <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', margin: 0, fontWeight: 700, fontSize: '0.85rem', color: isFineWaived ? '#065f46' : '#9a3412' }}>
+                          <input 
+                            type="checkbox" 
+                            checked={isFineWaived} 
+                            onChange={(e) => {
+                              const checked = e.target.checked;
+                              setIsFineWaived(checked);
+                              if (checked) setCustomFine(0);
+                              else setCustomFine(null);
+                            }}
+                            style={{ width: '16px', height: '16px', cursor: 'pointer', accentColor: '#16a34a' }}
+                          />
+                          <span>Waive Late Fine (Fine Maafi / جرمانہ معاف)</span>
+                        </label>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const next = !isFineWaived;
+                            setIsFineWaived(next);
+                            if (next) setCustomFine(0);
+                            else setCustomFine(null);
+                          }}
+                          className="btn"
+                          style={{
+                            padding: '2px 8px',
+                            fontSize: '0.75rem',
+                            fontWeight: 600,
+                            backgroundColor: isFineWaived ? '#fef2f2' : '#dcfce7',
+                            color: isFineWaived ? '#991b1b' : '#15803d',
+                            borderColor: isFineWaived ? '#fca5a5' : '#86efac',
+                            borderWidth: '1px',
+                            borderStyle: 'solid',
+                            borderRadius: '4px',
+                            cursor: 'pointer'
+                          }}
+                        >
+                          {isFineWaived ? 'Undo Maafi' : 'Remove Fine (0 Rs)'}
+                        </button>
+                      </div>
+
+                      <div style={{ marginTop: '0.35rem', fontSize: '0.75rem', color: isFineWaived ? '#047857' : '#7c2d12', lineHeight: 1.4 }}>
+                        {isFineWaived 
+                          ? `✓ Fine Maafi Applied: The Rs. ${autoFine.toLocaleString()} fine has been removed by admin. Tenant only pays base rent.`
+                          : 'Payment date is past the 10th of the month. Admin can waive or remove this fine.'}
+                      </div>
+
+                      {!isFineWaived && (
+                        <div style={{ marginTop: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem', borderTop: '1px dashed #fed7aa', paddingTop: '0.5rem' }}>
+                          <span style={{ fontSize: '0.75rem', color: '#7c2d12', fontWeight: 600 }}>Custom / Partial Fine:</span>
+                          <input 
+                            type="number"
+                            min="0"
+                            max={autoFine}
+                            value={customFine !== null ? customFine : autoFine}
+                            onChange={(e) => {
+                              const val = parseFloat(e.target.value);
+                              if (isNaN(val) || val <= 0) {
+                                setCustomFine(0);
+                                setIsFineWaived(true);
+                              } else {
+                                setCustomFine(val);
+                                setIsFineWaived(false);
+                              }
+                            }}
+                            style={{ width: '90px', padding: '2px 6px', fontSize: '0.8rem', border: '1px solid #fed7aa', borderRadius: '4px' }}
+                          />
+                          <span style={{ fontSize: '0.7rem', color: '#9a3412' }}>(Rs. 0 = full waiver)</span>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
 
                 <div className="form-group">
@@ -1012,6 +1161,24 @@ export default function Rent({ currentUser }) {
                           <td style={{ fontWeight: 600 }}>Rs. {totalAmt.toLocaleString()}</td>
                           <td style={{ textAlign: 'right' }}>
                             <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end', alignItems: 'center' }}>
+                              {parseFloat(pmt.fine_amount || 0) > 0 && (
+                                <button 
+                                  className="btn btn-secondary"
+                                  style={{ 
+                                    padding: '0.2rem 0.5rem', 
+                                    fontSize: '0.75rem', 
+                                    color: '#047857', 
+                                    borderColor: '#a7f3d0', 
+                                    backgroundColor: '#ecfdf5', 
+                                    fontWeight: 600,
+                                    cursor: 'pointer'
+                                  }}
+                                  title="Remove / Waive Fine for this payment (Fine Maafi)"
+                                  onClick={() => handleWaiveExistingFine(pmt)}
+                                >
+                                  Fine Maafi
+                                </button>
+                              )}
                               {getAttachmentPath(pmt) && (
                                 <button 
                                   className="icon-btn" 
