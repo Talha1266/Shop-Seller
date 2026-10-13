@@ -130,6 +130,7 @@ export default function Rent({ currentUser }) {
   // State
   const [currentDate, setCurrentDate] = useState(new Date());
   const [searchQuery, setSearchQuery] = useState('');
+  const [sortConfig, setSortConfig] = useState({ key: 'shop', direction: 'asc' });
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedSale, setSelectedSale] = useState(null);
   const [paymentDate, setPaymentDate] = useState(new Date().toISOString().split('T')[0]);
@@ -139,6 +140,19 @@ export default function Rent({ currentUser }) {
   const [isUploadingAttachment, setIsUploadingAttachment] = useState(false);
   const [viewingAttachmentUrl, setViewingAttachmentUrl] = useState(null);
   const [viewingAttachmentTitle, setViewingAttachmentTitle] = useState('');
+
+  const requestSort = (key) => {
+    let direction = 'asc';
+    if (sortConfig.key === key && sortConfig.direction === 'asc') {
+      direction = 'desc';
+    }
+    setSortConfig({ key, direction });
+  };
+
+  const getSortIndicator = (key) => {
+    if (sortConfig.key !== key) return <span style={{ opacity: 0.3, marginLeft: '4px', fontSize: '0.75rem' }}>⇅</span>;
+    return <span style={{ marginLeft: '4px', fontSize: '0.75rem', color: 'var(--color-primary)' }}>{sortConfig.direction === 'asc' ? '▲' : '▼'}</span>;
+  };
 
   const getAttachmentPath = (payment) => {
     if (!payment) return null;
@@ -299,7 +313,7 @@ export default function Rent({ currentUser }) {
       });
     }
 
-    return filtered.map(sale => {
+    const mapped = filtered.map(sale => {
       const shop = shops.find(sh => sh.id === sale.shopId);
       const rentDue = parseFloat(sale.monthly_rent || shop?.monthly_rent || 0);
       
@@ -321,7 +335,68 @@ export default function Rent({ currentUser }) {
         status
       };
     });
-  }, [sales, shops, tenants, rentCollections, selectedMonthString, searchQuery]);
+
+    const floorOrder = (name = '') => {
+      const n = (name || '').toLowerCase().trim();
+      if (n.includes('base') || n.includes('b.f') || n === 'b1') return -1;
+      if (n.includes('ground') || n.includes('g.f') || n === 'gf' || n === 'g') return 0;
+      if (n.includes('first') || n.includes('1st') || n.includes('f.f') || n === 'ff' || n === '1f') return 1;
+      if (n.includes('second') || n.includes('2nd') || n.includes('s.f') || n === 'sf' || n === '2f') return 2;
+      if (n.includes('third') || n.includes('3rd') || n.includes('t.f') || n === 'tf' || n === '3f') return 3;
+      if (n.includes('fourth') || n.includes('4th') || n.includes('4f')) return 4;
+      const num = parseInt(n, 10);
+      return isNaN(num) ? 99 : num + 10;
+    };
+
+    const extractShopNum = (val) => {
+      const match = String(val || '').match(/\d+/);
+      return match ? parseInt(match[0], 10) : 0;
+    };
+
+    return mapped.sort((a, b) => {
+      let comparison = 0;
+      if (sortConfig.key === 'tenant') {
+        const tenantA = getTenantDetails(a.tenantId).toLowerCase();
+        const tenantB = getTenantDetails(b.tenantId).toLowerCase();
+        comparison = tenantA.localeCompare(tenantB);
+      } else if (sortConfig.key === 'rentDue') {
+        comparison = a.rentDue - b.rentDue;
+      } else if (sortConfig.key === 'amountPaid') {
+        comparison = a.amountPaid - b.amountPaid;
+      } else if (sortConfig.key === 'balance') {
+        comparison = a.balance - b.balance;
+      } else if (sortConfig.key === 'status') {
+        comparison = a.status.localeCompare(b.status);
+      } else {
+        // Default: Sort by shop details in ascending order (Block -> Floor -> Shop Number)
+        const shopA = shops.find(sh => sh.id === a.shopId);
+        const shopB = shops.find(sh => sh.id === b.shopId);
+
+        // 1. Block: alphabetical ascending (A, B, C...)
+        const blockCmp = (shopA?.block || '').localeCompare(shopB?.block || '', undefined, { numeric: true, sensitivity: 'base' });
+        if (blockCmp !== 0) {
+          comparison = blockCmp;
+        } else {
+          // 2. Floor: Ground -> 1st -> 2nd...
+          const floorCmp = floorOrder(shopA?.floor) - floorOrder(shopB?.floor);
+          if (floorCmp !== 0) {
+            comparison = floorCmp;
+          } else {
+            // 3. Shop Number: numeric ascending (1, 2, 3... 10...)
+            const numA = extractShopNum(shopA?.shopNumber);
+            const numB = extractShopNum(shopB?.shopNumber);
+            if (numA !== numB) {
+              comparison = numA - numB;
+            } else {
+              comparison = String(shopA?.shopNumber || '').localeCompare(String(shopB?.shopNumber || ''), undefined, { numeric: true, sensitivity: 'base' });
+            }
+          }
+        }
+      }
+
+      return sortConfig.direction === 'asc' ? comparison : -comparison;
+    });
+  }, [sales, shops, tenants, rentCollections, selectedMonthString, searchQuery, sortConfig]);
 
   const handleReceiveRent = async (e) => {
     e.preventDefault();
@@ -474,12 +549,24 @@ export default function Rent({ currentUser }) {
           <table className="table">
             <thead>
               <tr>
-                <th>Shop Details</th>
-                <th>Tenant</th>
-                <th>Rent Due</th>
-                <th>Amount Paid</th>
-                <th>Balance</th>
-                <th>Status</th>
+                <th onClick={() => requestSort('shop')} style={{ cursor: 'pointer', userSelect: 'none' }} title="Sort by Shop Details">
+                  Shop Details {getSortIndicator('shop')}
+                </th>
+                <th onClick={() => requestSort('tenant')} style={{ cursor: 'pointer', userSelect: 'none' }} title="Sort by Tenant">
+                  Tenant {getSortIndicator('tenant')}
+                </th>
+                <th onClick={() => requestSort('rentDue')} style={{ cursor: 'pointer', userSelect: 'none' }} title="Sort by Rent Due">
+                  Rent Due {getSortIndicator('rentDue')}
+                </th>
+                <th onClick={() => requestSort('amountPaid')} style={{ cursor: 'pointer', userSelect: 'none' }} title="Sort by Amount Paid">
+                  Amount Paid {getSortIndicator('amountPaid')}
+                </th>
+                <th onClick={() => requestSort('balance')} style={{ cursor: 'pointer', userSelect: 'none' }} title="Sort by Balance">
+                  Balance {getSortIndicator('balance')}
+                </th>
+                <th onClick={() => requestSort('status')} style={{ cursor: 'pointer', userSelect: 'none' }} title="Sort by Status">
+                  Status {getSortIndicator('status')}
+                </th>
                 <th style={{ textAlign: 'right' }}>Actions</th>
               </tr>
             </thead>
