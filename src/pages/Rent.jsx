@@ -124,6 +124,209 @@ const RentReceiptPrint = ({ printData, innerRef, projectName, appSettings }) => 
   );
 };
 
+const RentReportPrint = ({
+  sales,
+  shops,
+  tenants,
+  monthFormatted,
+  innerRef,
+  projectName,
+  appSettings,
+  searchQuery,
+}) => {
+  const [logoUrl, setLogoUrl] = useState('');
+
+  useEffect(() => {
+    if (appSettings?.watermark_url) {
+      supabase.storage
+        .from('tenant-documents')
+        .createSignedUrl(appSettings.watermark_url, 3600)
+        .then(({ data }) => {
+          if (data) setLogoUrl(data.signedUrl);
+        });
+    }
+  }, [appSettings?.watermark_url]);
+
+  if (!sales) return <div ref={innerRef}></div>;
+
+  const totalRentDue = sales.reduce((sum, s) => sum + (s.rentDue || 0), 0);
+  const totalPaid = sales.reduce((sum, s) => sum + (s.amountPaid || 0), 0);
+  const totalBalance = sales.reduce((sum, s) => sum + (s.balance || 0), 0);
+
+  const formattedDate = new Date().toLocaleDateString('en-GB', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+  });
+  const formattedTime = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+  const getShopDetails = (shopId) => {
+    const shop = shops.find(s => s.id === shopId);
+    return shop ? `Shop ${shop.shopNumber} (${shop.block}, ${shop.floor})` : 'Unknown Shop';
+  };
+
+  const getTenantDetails = (tenantId) => {
+    const tenant = tenants.find(t => t.id === tenantId);
+    return tenant ? tenant.name : 'Unknown Tenant';
+  };
+
+  return (
+    <div ref={innerRef} className="print-rent-report-wrapper" style={{ display: 'none', padding: '24px', fontFamily: 'system-ui, -apple-system, Segoe UI, Roboto, sans-serif', color: '#0f172a' }}>
+      <style type="text/css" media="print">
+        {`
+          @page { size: landscape; margin: 10mm; }
+          .print-rent-report-wrapper { display: block !important; }
+          body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+          table { page-break-inside: auto; }
+          tr { page-break-inside: avoid; page-break-after: auto; }
+          thead { display: table-header-group; }
+          tfoot { display: table-footer-group; }
+        `}
+      </style>
+
+      {/* Header */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '2px solid #0f172a', paddingBottom: '16px', marginBottom: '16px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+          {logoUrl && (
+            <img
+              src={logoUrl}
+              alt="Logo"
+              style={{ maxHeight: '70px', maxWidth: '100px', objectFit: 'contain', mixBlendMode: 'multiply' }}
+            />
+          )}
+          <div>
+            <h1 style={{ margin: 0, fontSize: '22px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+              {projectName || 'Plaza Management'}
+            </h1>
+            <h2 style={{ margin: '4px 0 0 0', fontSize: '15px', fontWeight: 600, color: '#334155', letterSpacing: '0.25px' }}>
+              RENT & MAINTENANCE COLLECTION REPORT — {monthFormatted}
+            </h2>
+            {searchQuery && (
+              <p style={{ margin: '2px 0 0 0', fontSize: '11px', color: '#64748b' }}>
+                Filtered by: "{searchQuery}"
+              </p>
+            )}
+          </div>
+        </div>
+
+        <div style={{ textAlign: 'right', fontSize: '11px', color: '#475569' }}>
+          <p style={{ margin: 0 }}><strong>Billing Month:</strong> {monthFormatted}</p>
+          <p style={{ margin: '2px 0 0 0' }}><strong>Printed On:</strong> {formattedDate} {formattedTime}</p>
+          <p style={{ margin: '2px 0 0 0' }}><strong>Total Units:</strong> {sales.length}</p>
+        </div>
+      </div>
+
+      {/* Table */}
+      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '11px', lineHeight: 1.4 }}>
+        <thead>
+          <tr style={{ backgroundColor: '#f1f5f9', borderTop: '1px solid #cbd5e1', borderBottom: '2px solid #0f172a' }}>
+            <th style={{ padding: '8px 6px', textAlign: 'center', width: '35px', fontWeight: 700, borderRight: '1px solid #cbd5e1' }}>#</th>
+            <th style={{ padding: '8px 8px', textAlign: 'left', fontWeight: 700, borderRight: '1px solid #cbd5e1' }}>Shop Details</th>
+            <th style={{ padding: '8px 8px', textAlign: 'left', fontWeight: 700, borderRight: '1px solid #cbd5e1' }}>Tenant Name</th>
+            <th style={{ padding: '8px 8px', textAlign: 'right', width: '130px', fontWeight: 700, borderRight: '1px solid #cbd5e1' }}>Monthly Rent Due</th>
+            <th style={{ padding: '8px 8px', textAlign: 'right', width: '130px', fontWeight: 700, borderRight: '1px solid #cbd5e1' }}>Amount Paid</th>
+            <th style={{ padding: '8px 8px', textAlign: 'right', width: '130px', fontWeight: 700, borderRight: '1px solid #cbd5e1' }}>Balance Due</th>
+            <th style={{ padding: '8px 8px', textAlign: 'center', width: '100px', fontWeight: 700 }}>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          {sales.length === 0 ? (
+            <tr>
+              <td colSpan="7" style={{ textAlign: 'center', padding: '24px', color: '#64748b' }}>
+                No rent records found for this month.
+              </td>
+            </tr>
+          ) : (
+            sales.map((sale, idx) => (
+              <tr
+                key={sale.id}
+                style={{
+                  backgroundColor: idx % 2 === 0 ? '#ffffff' : '#f8fafc',
+                  borderBottom: '1px solid #e2e8f0',
+                }}
+              >
+                <td style={{ padding: '6px', textAlign: 'center', borderRight: '1px solid #e2e8f0', color: '#64748b' }}>
+                  {idx + 1}
+                </td>
+                <td style={{ padding: '6px 8px', fontWeight: 600, borderRight: '1px solid #e2e8f0' }}>
+                  {getShopDetails(sale.shopId)}
+                </td>
+                <td style={{ padding: '6px 8px', borderRight: '1px solid #e2e8f0' }}>
+                  {getTenantDetails(sale.tenantId)}
+                </td>
+                <td style={{ padding: '6px 8px', textAlign: 'right', borderRight: '1px solid #e2e8f0' }}>
+                  Rs. {Number(sale.rentDue || 0).toLocaleString()}
+                </td>
+                <td style={{ padding: '6px 8px', textAlign: 'right', borderRight: '1px solid #e2e8f0', color: sale.amountPaid > 0 ? '#0f766e' : 'inherit', fontWeight: 500 }}>
+                  {sale.amountPaid > 0 ? `Rs. ${Number(sale.amountPaid).toLocaleString()}` : '—'}
+                </td>
+                <td style={{
+                  padding: '6px 8px',
+                  textAlign: 'right',
+                  fontWeight: 700,
+                  borderRight: '1px solid #e2e8f0',
+                  color: sale.balance > 0 ? '#b91c1c' : '#15803d',
+                }}>
+                  Rs. {Number(sale.balance || 0).toLocaleString()}
+                </td>
+                <td style={{ padding: '6px 8px', textAlign: 'center' }}>
+                  <span style={{
+                    display: 'inline-block',
+                    padding: '2px 8px',
+                    borderRadius: '4px',
+                    fontSize: '10px',
+                    fontWeight: 700,
+                    textTransform: 'uppercase',
+                    backgroundColor: sale.status === 'Paid' ? '#dcfce7' : sale.status === 'Partial' ? '#fef3c7' : '#fee2e2',
+                    color: sale.status === 'Paid' ? '#15803d' : sale.status === 'Partial' ? '#b45309' : '#b91c1c',
+                    border: `1px solid ${sale.status === 'Paid' ? '#bbf7d0' : sale.status === 'Partial' ? '#fde68a' : '#fecaca'}`,
+                  }}>
+                    {sale.status}
+                  </span>
+                </td>
+              </tr>
+            ))
+          )}
+        </tbody>
+        {sales.length > 0 && (
+          <tfoot>
+            <tr style={{ backgroundColor: '#f1f5f9', borderTop: '2px solid #0f172a', borderBottom: '2px solid #0f172a', fontWeight: 700 }}>
+              <td colSpan="3" style={{ padding: '8px', textAlign: 'left', borderRight: '1px solid #cbd5e1' }}>
+                TOTALS ({sales.length} {sales.length === 1 ? 'UNIT' : 'UNITS'})
+              </td>
+              <td style={{ padding: '8px', textAlign: 'right', borderRight: '1px solid #cbd5e1' }}>
+                Rs. {totalRentDue.toLocaleString()}
+              </td>
+              <td style={{ padding: '8px', textAlign: 'right', borderRight: '1px solid #cbd5e1', color: '#0f766e' }}>
+                Rs. {totalPaid.toLocaleString()}
+              </td>
+              <td style={{ padding: '8px', textAlign: 'right', borderRight: '1px solid #cbd5e1', color: totalBalance > 0 ? '#b91c1c' : '#15803d' }}>
+                Rs. {totalBalance.toLocaleString()}
+              </td>
+              <td style={{ padding: '8px', textAlign: 'center' }}>
+                {totalBalance <= 0 ? 'CLEARED' : `${Math.round((totalPaid / (totalRentDue || 1)) * 100)}% PAID`}
+              </td>
+            </tr>
+          </tfoot>
+        )}
+      </table>
+
+      {/* Signature Section */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '40px', paddingTop: '20px', pageBreakInside: 'avoid', fontSize: '11px', color: '#334155' }}>
+        <div style={{ textAlign: 'center', width: '200px' }}>
+          <div style={{ borderTop: '1px solid #0f172a', paddingTop: '6px', fontWeight: 600 }}>Prepared By</div>
+        </div>
+        <div style={{ textAlign: 'center', width: '200px' }}>
+          <div style={{ borderTop: '1px solid #0f172a', paddingTop: '6px', fontWeight: 600 }}>Checked / Verified By</div>
+        </div>
+        <div style={{ textAlign: 'center', width: '220px' }}>
+          <div style={{ borderTop: '1px solid #0f172a', paddingTop: '6px', fontWeight: 600 }}>Authorized Signature & Stamp</div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 export default function Rent({ currentUser }) {
   const db = useDb();
   
@@ -219,6 +422,7 @@ export default function Rent({ currentUser }) {
 
   const { activeProject } = useProject();
   const printRef = useRef(null);
+  const printRentReportRef = useRef(null);
   const [printData, setPrintData] = useState(null);
 
   const handlePrint = useReactToPrint({
@@ -267,6 +471,11 @@ export default function Rent({ currentUser }) {
   };
 
   const selectedMonthString = getMonthString(currentDate);
+
+  const handlePrintRentReport = useReactToPrint({
+    contentRef: printRentReportRef,
+    documentTitle: `${activeProject?.name || 'Plaza'}_Rent_Report_${selectedMonthString}`,
+  });
 
   const handlePrevMonth = () => {
     setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1));
@@ -520,15 +729,36 @@ export default function Rent({ currentUser }) {
         projectName={activeProject?.name}
         appSettings={appSettings}
       />
-      <div className="page-header" style={{ flexWrap: 'wrap', gap: '1rem' }}>
+      <RentReportPrint
+        sales={activeRentSales}
+        shops={shops}
+        tenants={tenants}
+        monthFormatted={currentDate.toLocaleString('default', { month: 'long', year: 'numeric' })}
+        innerRef={printRentReportRef}
+        projectName={activeProject?.name}
+        appSettings={appSettings}
+        searchQuery={searchQuery}
+      />
+      <div className="page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
         <h1 className="page-title">Rent & Maintenance</h1>
         
-        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', backgroundColor: 'var(--color-bg-app)', padding: '0.5rem', borderRadius: '12px' }}>
-          <button className="btn btn-secondary" onClick={handlePrevMonth}>&laquo; Prev</button>
-          <span style={{ fontWeight: 600, minWidth: '150px', textAlign: 'center' }}>
-            {currentDate.toLocaleString('default', { month: 'long', year: 'numeric' })}
-          </span>
-          <button className="btn btn-secondary" onClick={handleNextMonth}>Next &raquo;</button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', backgroundColor: 'var(--color-bg-app)', padding: '0.35rem 0.5rem', borderRadius: '8px', border: '1px solid var(--color-border)' }}>
+            <button className="btn btn-secondary" style={{ padding: '0.25rem 0.5rem', fontSize: '0.85rem' }} onClick={handlePrevMonth}>&laquo; Prev</button>
+            <span style={{ fontWeight: 600, minWidth: '140px', textAlign: 'center', fontSize: '0.95rem' }}>
+              {currentDate.toLocaleString('default', { month: 'long', year: 'numeric' })}
+            </span>
+            <button className="btn btn-secondary" style={{ padding: '0.25rem 0.5rem', fontSize: '0.85rem' }} onClick={handleNextMonth}>Next &raquo;</button>
+          </div>
+
+          <button
+            className="btn btn-secondary"
+            onClick={handlePrintRentReport}
+            style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}
+            title="Print Monthly Rent & Maintenance Report"
+          >
+            <Printer size={18} /> Print Rent Report
+          </button>
         </div>
       </div>
 
