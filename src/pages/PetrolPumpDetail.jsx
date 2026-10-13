@@ -208,13 +208,7 @@ const PetrolPumpReceiptPrint = ({ printData, innerRef, pump, appSettings }) => {
         </table>
 
         {/* Signatures & Stamp */}
-        <div style={{ marginTop: '50px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
-          <div style={{ width: '200px', textAlign: 'center' }}>
-            <div style={{ borderTop: '1px solid #000', paddingTop: '8px' }}>
-              <p style={{ margin: 0, fontSize: '13px' }}>Lessee Signature</p>
-            </div>
-          </div>
-
+        <div style={{ marginTop: '50px', display: 'flex', justifyContent: 'flex-end', alignItems: 'flex-end' }}>
           <div style={{ width: '250px', textAlign: 'center' }}>
             {signatureUrl && (
               <img 
