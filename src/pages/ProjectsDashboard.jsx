@@ -7,7 +7,7 @@ import {
   Building2, Fuel, Store, Users, DollarSign, ChevronRight, 
   Plus, X, Trash2, MapPin, Maximize, Calendar, Clock, TrendingUp 
 } from 'lucide-react';
-import { getPumpIntervalYears, getPumpFixedRentYears, cleanGracePeriod } from './PetrolPumpDetail';
+import { getPumpIntervalYears, getPumpFixedRentYears, cleanGracePeriod, calculateLeaseEndDate } from './PetrolPumpDetail';
 
 export default function ProjectsDashboard() {
   const navigate = useNavigate();
@@ -28,7 +28,7 @@ export default function ProjectsDashboard() {
     location: '',
     total_area: '',
     lease_deed_reg_date: '',
-    total_lease_period: '',
+    total_lease_period: '15 Years',
     lease_start_date: '',
     lease_end_date: '',
     grace_period: '',
@@ -168,7 +168,7 @@ export default function ProjectsDashboard() {
         location: '',
         total_area: '',
         lease_deed_reg_date: '',
-        total_lease_period: '',
+        total_lease_period: '15 Years',
         lease_start_date: '',
         lease_end_date: '',
         grace_period: '',
@@ -582,7 +582,7 @@ export default function ProjectsDashboard() {
                     className="input-field" 
                     value={pumpForm.total_lease_period}
                     onChange={e => setPumpForm({ ...pumpForm, total_lease_period: e.target.value })}
-                    placeholder="e.g. 30 Years" 
+                    placeholder="e.g. 15 Years" 
                   />
                 </div>
 
@@ -605,12 +605,23 @@ export default function ProjectsDashboard() {
                     type="date" 
                     className="input-field" 
                     value={pumpForm.lease_start_date}
-                    onChange={e => setPumpForm({ ...pumpForm, lease_start_date: e.target.value })}
+                    onChange={e => {
+                      const startDate = e.target.value;
+                      const autoEndDate = calculateLeaseEndDate(startDate, 15);
+                      setPumpForm({ 
+                        ...pumpForm, 
+                        lease_start_date: startDate,
+                        lease_end_date: autoEndDate || pumpForm.lease_end_date,
+                        total_lease_period: pumpForm.total_lease_period || '15 Years'
+                      });
+                    }}
                   />
                 </div>
 
                 <div className="form-group">
-                  <label className="form-label">Lease End Date</label>
+                  <label className="form-label">
+                    Lease End Date <span style={{ fontSize: '0.75rem', color: 'var(--color-primary)', fontWeight: 500 }}>(15 Years Auto-calculated)</span>
+                  </label>
                   <input 
                     type="date" 
                     className="input-field" 
