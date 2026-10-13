@@ -19,6 +19,7 @@ import ProjectsDashboard from './pages/ProjectsDashboard';
 import { supabase } from './supabaseClient';
 import { ProjectProvider, useProject } from './contexts/ProjectContext';
 import { purgeOrphanedData } from './utils/autoCleanup';
+import ErrorBoundary from './components/ErrorBoundary';
 
 function AppContent({ currentUser, handleLogout }) {
   const { activeProject } = useProject();
@@ -33,34 +34,36 @@ function AppContent({ currentUser, handleLogout }) {
   return (
     <BrowserRouter>
       <Layout currentUser={currentUser} onLogout={handleLogout}>
-        {!activeProject ? (
-          <Routes>
-            <Route path="/" element={<ProjectsDashboard />} />
-            <Route path="/petrol-pump/:id" element={<PetrolPumpDetail currentUser={currentUser} />} />
-            <Route path="*" element={<Navigate to="/" replace />} />
-          </Routes>
-        ) : (
-          <Routes>
-            <Route path="/" element={<Dashboard />} />
-            <Route path="/petrol-pump/:id" element={<PetrolPumpDetail currentUser={currentUser} />} />
-            <Route path="/setup" element={<Setup />} />
-            <Route path="/settings" element={<Settings />} />
-            <Route path="/shops" element={<Shops currentUser={currentUser} />} />
-            <Route path="/tenants" element={<Tenants currentUser={currentUser} />} />
-            <Route path="/ledger" element={<Ledger currentUser={currentUser} />} />
-            <Route path="/sales" element={<Sales />} />
-            <Route path="/rent" element={<Rent currentUser={currentUser} />} />
-            <Route path="/payments" element={<Payments currentUser={currentUser} />} />
-            <Route path="/contractor" element={<Contractor />} />
-            <Route path="/summary" element={<Summary />} />
-            
-            {currentUser.isAdmin && (
-              <Route path="/admin" element={<AdminPanel />} />
-            )}
-            
-            <Route path="*" element={<Navigate to="/" replace />} />
-          </Routes>
-        )}
+        <ErrorBoundary>
+          {!activeProject ? (
+            <Routes>
+              <Route path="/" element={<ProjectsDashboard />} />
+              <Route path="/petrol-pump/:id" element={<PetrolPumpDetail currentUser={currentUser} />} />
+              <Route path="*" element={<Navigate to="/" replace />} />
+            </Routes>
+          ) : (
+            <Routes>
+              <Route path="/" element={<Dashboard />} />
+              <Route path="/petrol-pump/:id" element={<PetrolPumpDetail currentUser={currentUser} />} />
+              <Route path="/setup" element={<Setup />} />
+              <Route path="/settings" element={<Settings />} />
+              <Route path="/shops" element={<Shops currentUser={currentUser} />} />
+              <Route path="/tenants" element={<Tenants currentUser={currentUser} />} />
+              <Route path="/ledger" element={<Ledger currentUser={currentUser} />} />
+              <Route path="/sales" element={<Sales />} />
+              <Route path="/rent" element={<Rent currentUser={currentUser} />} />
+              <Route path="/payments" element={<Payments currentUser={currentUser} />} />
+              <Route path="/contractor" element={<Contractor />} />
+              <Route path="/summary" element={<Summary />} />
+              
+              {currentUser.isAdmin && (
+                <Route path="/admin" element={<AdminPanel />} />
+              )}
+              
+              <Route path="*" element={<Navigate to="/" replace />} />
+            </Routes>
+          )}
+        </ErrorBoundary>
       </Layout>
     </BrowserRouter>
   );

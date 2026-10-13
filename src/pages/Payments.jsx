@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useMemo } from 'react';
 import { useLocation } from 'react-router-dom';
 import { useSupabase } from '../hooks/useSupabase';
 import { useDb } from '../hooks/useDb';
@@ -12,13 +12,14 @@ export const getChequeDetails = (payment) => {
   if (!payment) return { chequeNo: '', chequeDate: '' };
   let chqNo = payment.cheque_no || payment.chequeNo || '';
   let chqDate = payment.cheque_date || payment.chequeDate || '';
-  if (!chqNo && payment.notes) {
-    const m = payment.notes.match(/Cheque\s*(?:#|No|Number)?:\s*([^,\]]+)/i);
-    if (m) chqNo = m[1].trim();
+  const notes = typeof payment.notes === 'string' ? payment.notes : '';
+  if (!chqNo && notes) {
+    const m = notes.match(/Cheque\s*(?:#|No|Number)?:\s*([^,\]]+)/i);
+    if (m && m[1]) chqNo = m[1].trim();
   }
-  if (!chqDate && payment.notes) {
-    const m = payment.notes.match(/Cheque\s*Date:\s*([^,\]]+)/i) || payment.notes.match(/(?:Date):\s*([^,\]]+)/i);
-    if (m) chqDate = m[1].trim();
+  if (!chqDate && notes) {
+    const m = notes.match(/Cheque\s*Date:\s*([^,\]]+)/i) || notes.match(/(?:Date):\s*([^,\]]+)/i);
+    if (m && m[1]) chqDate = m[1].trim();
   }
   return { chequeNo: chqNo, chequeDate: chqDate };
 };
@@ -45,20 +46,20 @@ const ReceiptPrint = ({ payment, tenantShops, tenant, innerRef, projectName }) =
         
         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '20px' }}>
           <div><strong>Receipt No:</strong> {payment.receiptNo}</div>
-          <div><strong>Date:</strong> {new Date(payment.date).toLocaleDateString()}</div>
+          <div><strong>Date:</strong> {payment.date ? new Date(payment.date).toLocaleDateString() : '—'}</div>
         </div>
 
         <div style={{ marginBottom: '30px', padding: '15px', backgroundColor: '#f9f9f9', border: '1px solid #ddd' }}>
           <h3 style={{ marginTop: 0, borderBottom: '1px solid #ccc', paddingBottom: '10px' }}>Received From</h3>
-          <p style={{ margin: '5px 0' }}><strong>Name:</strong> {tenant?.name}</p>
-          <p style={{ margin: '5px 0' }}><strong>CNIC:</strong> {tenant?.cnic}</p>
-          <p style={{ margin: '5px 0' }}><strong>Mobile:</strong> {tenant?.mobile}</p>
+          <p style={{ margin: '5px 0' }}><strong>Name:</strong> {tenant?.name || 'N/A'}</p>
+          <p style={{ margin: '5px 0' }}><strong>CNIC:</strong> {tenant?.cnic || 'N/A'}</p>
+          <p style={{ margin: '5px 0' }}><strong>Mobile:</strong> {tenant?.mobile || 'N/A'}</p>
         </div>
 
         <div style={{ marginBottom: '30px', padding: '15px', border: '1px solid #ddd' }}>
           <h3 style={{ marginTop: 0, borderBottom: '1px solid #ccc', paddingBottom: '10px' }}>Payment Details</h3>
-          <p style={{ margin: '5px 0' }}><strong>Portfolio Details:</strong> {tenantShops?.map(s => `Shop ${s.shopNumber} (Block ${s.block}, Floor ${s.floor})`).join(', ')}</p>
-          <p style={{ margin: '5px 0' }}><strong>Amount Paid:</strong> <span style={{ fontSize: '18px', fontWeight: 'bold' }}>Rs. {payment.amount.toLocaleString()}</span></p>
+          <p style={{ margin: '5px 0' }}><strong>Portfolio Details:</strong> {tenantShops?.map(s => `Shop ${s.shopNumber} (Block ${s.block}, Floor ${s.floor})`).join(', ') || 'N/A'}</p>
+          <p style={{ margin: '5px 0' }}><strong>Amount Paid:</strong> <span style={{ fontSize: '18px', fontWeight: 'bold' }}>Rs. {Number(payment.amount || 0).toLocaleString()}</span></p>
           <p style={{ margin: '5px 0' }}><strong>Payment Mode:</strong> {pmtMode}</p>
           {(payment.payment_method === 'Cheque' || chqInfo.chequeNo) && (
             <>
@@ -294,9 +295,10 @@ export default function Payments({ currentUser }) {
   const getAttachmentPath = (payment) => {
     if (!payment) return null;
     if (payment.attachment_url) return payment.attachment_url;
-    if (payment.notes && payment.notes.includes('[Attachment: ')) {
-      const match = payment.notes.match(/\[Attachment:\s*([^\]]+)\]/);
-      if (match) return match[1].trim();
+    const notes = typeof payment.notes === 'string' ? payment.notes : '';
+    if (notes && notes.includes('[Attachment: ')) {
+      const match = notes.match(/\[Attachment:\s*([^\]]+)\]/);
+      if (match && match[1]) return match[1].trim();
     }
     return null;
   };
@@ -667,10 +669,10 @@ export default function Payments({ currentUser }) {
                           return null;
                         })()}
                       </td>
-                      <td>{new Date(payment.date).toLocaleDateString()}</td>
+                      <td>{payment.date ? new Date(payment.date).toLocaleDateString() : '—'}</td>
                       <td>{details?.tenant?.name || 'N/A'}</td>
-                      <td>{details?.tenantShops ? details.tenantShops.map(s => `Shop ${s.shopNumber} (Block ${s.block})`).join(', ') : 'N/A'}</td>
-                      <td style={{ fontWeight: 600 }}>Rs. {payment.amount.toLocaleString()}</td>
+                      <td>{details?.tenantShops && details.tenantShops.length > 0 ? details.tenantShops.map(s => `Shop ${s.shopNumber} (Block ${s.block})`).join(', ') : 'N/A'}</td>
+                      <td style={{ fontWeight: 600 }}>Rs. {Number(payment.amount || 0).toLocaleString()}</td>
                       <td style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
                         {getAttachmentPath(payment) && (
                           <button 
@@ -870,7 +872,7 @@ export default function Payments({ currentUser }) {
               </div>
               <div className="form-group">
                 <label className="form-label">Payment Date</label>
-                <input type="date" name="date" className="form-control" required defaultValue={new Date(selectedPaymentForEdit.date).toISOString().split('T')[0]} />
+                <input type="date" name="date" className="form-control" required defaultValue={selectedPaymentForEdit?.date && !isNaN(new Date(selectedPaymentForEdit.date).getTime()) ? new Date(selectedPaymentForEdit.date).toISOString().split('T')[0] : new Date().toISOString().split('T')[0]} />
               </div>
               <div className="form-group">
                 <label className="form-label">Amount</label>
