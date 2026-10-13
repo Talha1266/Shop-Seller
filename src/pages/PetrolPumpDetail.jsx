@@ -101,12 +101,24 @@ export const getPumpFixedRentYears = (pump) => {
   return getPumpIntervalYears(pump);
 };
 
-// Helper to strip out internal [Interval: X] and [FixedYears: X] metadata from grace_period for clean UI display
+// Helper to extract agreement document path from pump record or metadata
+export const getPumpAgreementUrl = (pump) => {
+  if (!pump) return null;
+  if (pump.agreement_url) return pump.agreement_url;
+  if (pump.grace_period && pump.grace_period.includes('[Agreement:')) {
+    const match = pump.grace_period.match(/\[Agreement:\s*([^\]]+)\]/);
+    if (match) return match[1].trim();
+  }
+  return null;
+};
+
+// Helper to strip out internal [Interval: X], [FixedYears: X], and [Agreement: X] metadata from grace_period for clean UI display
 export const cleanGracePeriod = (gp) => {
   if (!gp) return '';
   return gp
     .replace(/\[Interval:\s*\d+\]/g, '')
     .replace(/\[FixedYears:\s*\d+\]/g, '')
+    .replace(/\[Agreement:\s*[^\]]+\]/g, '')
     .trim();
 };
 
@@ -351,6 +363,38 @@ export default function PetrolPumpDetail({ currentUser }) {
   const appSettings = appSettingsList.length > 0 ? appSettingsList[0] : null;
 
   // Edit form state
+  const [editAgreementFile, setEditAgreementFile] = useState(null);
+  const [isUploadingAgreement, setIsUploadingAgreement] = useState(false);
+
+  // Helper to open the lease agreement in viewer
+  const handleOpenAgreementDoc = async (pumpObj) => {
+    const p = pumpObj || pump;
+    const path = getPumpAgreementUrl(p);
+    if (!path) {
+      alert("No lease agreement document found for this petrol pump.");
+      return;
+    }
+
+    try {
+      const { data, error } = await supabase.storage
+        .from('tenant-documents')
+        .createSignedUrl(path, 3600);
+
+      if (error || !data?.signedUrl) {
+        const { data: pubData } = supabase.storage
+          .from('tenant-documents')
+          .getPublicUrl(path);
+        setViewingAttachmentUrl(pubData?.publicUrl || path);
+      } else {
+        setViewingAttachmentUrl(data.signedUrl);
+      }
+      setViewingAttachmentTitle(`Lease Agreement - ${p.name}`);
+    } catch (err) {
+      console.error(err);
+      alert('Failed to load lease agreement document: ' + err.message);
+    }
+  };
+
   const [editForm, setEditForm] = useState({
     name: '',
     location: '',
@@ -692,9 +736,38 @@ export default function PetrolPumpDetail({ currentUser }) {
     e.preventDefault();
     if (!pump) return;
 
+    if (!getPumpAgreementUrl(pump) && !editAgreementFile) {
+      alert("Lease agreement document is compulsory for every petrol pump lease. Please attach the document.");
+      return;
+    }
+
     const targetIntervalYears = Math.max(1, Number(editForm.increase_interval_years) || 1);
     const targetFixedYears = Math.max(1, Number(editForm.fixed_rent_years) || 1);
     const rawGracePeriod = cleanGracePeriod(editForm.grace_period);
+
+    let newAgreementPath = null;
+    if (editAgreementFile) {
+      setIsUploadingAgreement(true);
+      try {
+        const cleanFileName = editAgreementFile.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+        const filePath = `petrol_pumps/agreements/${Date.now()}_${cleanFileName}`;
+        const { error: uploadError } = await supabase.storage
+          .from('tenant-documents')
+          .upload(filePath, editAgreementFile, { upsert: true });
+
+        if (uploadError) throw uploadError;
+        newAgreementPath = filePath;
+      } catch (uploadErr) {
+        setIsUploadingAgreement(false);
+        console.error(uploadErr);
+        alert('Failed to upload agreement file: ' + uploadErr.message);
+        return;
+      } finally {
+        setIsUploadingAgreement(false);
+      }
+    }
+
+    const finalAgreementUrl = newAgreementPath || getPumpAgreementUrl(pump);
 
     const updateData = {
       name: editForm.name?.trim(),
@@ -709,6 +782,7 @@ export default function PetrolPumpDetail({ currentUser }) {
       fixed_rent_years: targetFixedYears,
       annual_increase_pct: Number(editForm.annual_increase_pct) || 0,
       increase_interval_years: targetIntervalYears,
+      agreement_url: finalAgreementUrl,
       updated_at: new Date().toISOString()
     };
 
@@ -716,9 +790,14 @@ export default function PetrolPumpDetail({ currentUser }) {
       try {
         await db.petrol_pumps.update(pump.id, updateData);
       } catch (updErr) {
-        if (updErr.message && (updErr.message.includes('fixed_rent_years') || updErr.message.includes('increase_interval_years') || updErr.code === '42703')) {
-          // If the column does not exist in DB yet, preserve both in metadata so they are never lost!
-          const metaString = `[FixedYears: ${targetFixedYears}] [Interval: ${targetIntervalYears}]`;
+        if (updErr.message && (
+          updErr.message.includes('fixed_rent_years') || 
+          updErr.message.includes('increase_interval_years') || 
+          updErr.message.includes('agreement_url') || 
+          updErr.code === '42703'
+        )) {
+          // If the column does not exist in DB yet, preserve in metadata so they are never lost!
+          const metaString = `[FixedYears: ${targetFixedYears}] [Interval: ${targetIntervalYears}]${finalAgreementUrl ? ` [Agreement: ${finalAgreementUrl}]` : ''}`;
           const fallbackGrace = rawGracePeriod 
             ? `${rawGracePeriod} ${metaString}` 
             : metaString;
@@ -728,11 +807,13 @@ export default function PetrolPumpDetail({ currentUser }) {
           };
           delete fallbackData.fixed_rent_years;
           delete fallbackData.increase_interval_years;
+          delete fallbackData.agreement_url;
           await db.petrol_pumps.update(pump.id, fallbackData);
         } else {
           throw updErr;
         }
       }
+      setEditAgreementFile(null);
       setIsEditModalOpen(false);
       alert('Petrol pump updated successfully!');
     } catch (err) {
@@ -971,6 +1052,54 @@ export default function PetrolPumpDetail({ currentUser }) {
               <p style={{ fontSize: '1.1rem', fontWeight: 600, margin: '0.25rem 0 0 0' }}>
                 +{pump.annual_increase_pct || 0}% every {getPumpIntervalYears(pump)} year{getPumpIntervalYears(pump) > 1 ? 's' : ''} (starts Year {getPumpFixedRentYears(pump) + 1})
               </p>
+            </div>
+          </div>
+
+          {/* Attached Lease Agreement Section */}
+          <div style={{ marginTop: '1.5rem', padding: '1.25rem', backgroundColor: 'var(--color-bg-app)', borderRadius: '8px', border: '1px solid var(--color-border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
+              <div style={{ width: '44px', height: '44px', borderRadius: '8px', backgroundColor: 'rgba(37, 99, 235, 0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--color-primary)' }}>
+                <FileText size={22} />
+              </div>
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <h4 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 600 }}>Compulsory Lease Agreement</h4>
+                  {getPumpAgreementUrl(pump) ? (
+                    <span className="badge" style={{ backgroundColor: '#10b981', color: '#fff', fontSize: '0.72rem', padding: '0.15rem 0.5rem', borderRadius: '10px' }}>
+                      Attached
+                    </span>
+                  ) : (
+                    <span className="badge" style={{ backgroundColor: '#ef4444', color: '#fff', fontSize: '0.72rem', padding: '0.15rem 0.5rem', borderRadius: '10px' }}>
+                      Missing
+                    </span>
+                  )}
+                </div>
+                <p style={{ margin: '0.25rem 0 0 0', fontSize: '0.85rem', color: 'var(--color-text-muted)' }}>
+                  {getPumpAgreementUrl(pump) 
+                    ? `Document: ${getPumpAgreementUrl(pump).split('/').pop()}` 
+                    : 'Lease agreement document must be attached for this petrol pump.'}
+                </p>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', gap: '0.5rem' }}>
+              {getPumpAgreementUrl(pump) ? (
+                <button 
+                  className="btn btn-primary btn-sm" 
+                  onClick={() => handleOpenAgreementDoc(pump)}
+                  style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}
+                >
+                  <FileText size={15} /> View Agreement
+                </button>
+              ) : (
+                <button 
+                  className="btn btn-primary btn-sm" 
+                  onClick={() => setIsEditModalOpen(true)}
+                  style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', backgroundColor: '#ef4444', borderColor: '#ef4444' }}
+                >
+                  <Paperclip size={15} /> Attach Agreement Now
+                </button>
+              )}
             </div>
           </div>
         </div>
@@ -1439,11 +1568,19 @@ export default function PetrolPumpDetail({ currentUser }) {
               <button className="icon-btn" onClick={() => setViewingAttachmentUrl(null)}><X size={20} /></button>
             </div>
             <div style={{ padding: '1rem', backgroundColor: '#f3f4f6', borderRadius: '8px', margin: '1rem 0', display: 'flex', justifyContent: 'center' }}>
-              <img 
-                src={viewingAttachmentUrl} 
-                alt="Cheque / Receipt" 
-                style={{ maxWidth: '100%', maxHeight: '65vh', objectFit: 'contain', borderRadius: '6px', boxShadow: '0 4px 6px rgba(0,0,0,0.1)' }} 
-              />
+              {viewingAttachmentUrl && viewingAttachmentUrl.toLowerCase().includes('.pdf') ? (
+                <iframe 
+                  src={viewingAttachmentUrl} 
+                  title="Document Viewer" 
+                  style={{ width: '100%', height: '65vh', border: 'none', borderRadius: '6px' }}
+                />
+              ) : (
+                <img 
+                  src={viewingAttachmentUrl} 
+                  alt="Attachment Preview" 
+                  style={{ maxWidth: '100%', maxHeight: '65vh', objectFit: 'contain', borderRadius: '6px', boxShadow: '0 4px 6px rgba(0,0,0,0.1)' }} 
+                />
+              )}
             </div>
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem' }}>
               <a 
@@ -1649,9 +1786,40 @@ export default function PetrolPumpDetail({ currentUser }) {
                 Rent will remain fixed for the first {editForm.fixed_rent_years || 1} year{Number(editForm.fixed_rent_years || 1) > 1 ? 's' : ''}, and then increase by {editForm.annual_increase_pct || 0}% every {editForm.increase_interval_years || 1} year{Number(editForm.increase_interval_years || 1) > 1 ? 's' : ''}.
               </p>
 
+              <div className="form-group" style={{ marginBottom: '1.25rem' }}>
+                <label className="form-label" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <span>
+                    Lease Agreement Document {getPumpAgreementUrl(pump) ? '(Replace Attached File)' : <span style={{ color: '#ef4444' }}>* (Compulsory)</span>}
+                  </span>
+                  {getPumpAgreementUrl(pump) && (
+                    <span style={{ fontSize: '0.75rem', color: '#10b981', fontWeight: 600 }}>✓ Document Attached</span>
+                  )}
+                </label>
+                <input 
+                  type="file" 
+                  accept=".pdf,image/*,.doc,.docx"
+                  className="input-field" 
+                  onChange={e => {
+                    const file = e.target.files[0];
+                    setEditAgreementFile(file || null);
+                  }}
+                />
+                {editAgreementFile ? (
+                  <div style={{ marginTop: '0.4rem', fontSize: '0.825rem', color: 'var(--color-primary)', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                    <Paperclip size={14} /> Selected: {editAgreementFile.name} ({(editAgreementFile.size / 1024).toFixed(1)} KB)
+                  </div>
+                ) : getPumpAgreementUrl(pump) ? (
+                  <div style={{ marginTop: '0.3rem', fontSize: '0.8rem', color: 'var(--color-text-muted)' }}>
+                    Current document: {getPumpAgreementUrl(pump).split('/').pop()}
+                  </div>
+                ) : null}
+              </div>
+
               <div className="modal-footer">
                 <button type="button" className="btn btn-secondary" onClick={() => setIsEditModalOpen(false)}>Cancel</button>
-                <button type="submit" className="btn btn-primary">Save Changes</button>
+                <button type="submit" className="btn btn-primary" disabled={isUploadingAgreement}>
+                  {isUploadingAgreement ? 'Uploading Agreement...' : 'Save Changes'}
+                </button>
               </div>
             </form>
           </div>

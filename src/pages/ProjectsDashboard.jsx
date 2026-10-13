@@ -5,9 +5,9 @@ import { useSupabase } from '../hooks/useSupabase';
 import { useDb } from '../hooks/useDb';
 import { 
   Building2, Fuel, Store, Users, DollarSign, ChevronRight, 
-  Plus, X, Trash2, MapPin, Maximize, Calendar, Clock, TrendingUp, Lock 
+  Plus, X, Trash2, MapPin, Maximize, Calendar, Clock, TrendingUp, Lock, Paperclip, FileText 
 } from 'lucide-react';
-import { getPumpIntervalYears, getPumpFixedRentYears, cleanGracePeriod, calculateLeaseEndDate, parseLeaseYears } from './PetrolPumpDetail';
+import { getPumpIntervalYears, getPumpFixedRentYears, cleanGracePeriod, calculateLeaseEndDate, parseLeaseYears, getPumpAgreementUrl } from './PetrolPumpDetail';
 
 export default function ProjectsDashboard() {
   const navigate = useNavigate();
@@ -23,6 +23,8 @@ export default function ProjectsDashboard() {
 
   // Petrol Pump Creation state
   const [isCreatingPump, setIsCreatingPump] = useState(false);
+  const [agreementFile, setAgreementFile] = useState(null);
+  const [isUploadingAgreement, setIsUploadingAgreement] = useState(false);
   const [pumpForm, setPumpForm] = useState({
     name: '',
     location: '',
@@ -124,7 +126,36 @@ export default function ProjectsDashboard() {
       return;
     }
 
+    if (!agreementFile) {
+      alert("Lease agreement document is compulsory for every petrol pump lease. Please attach the document before creating.");
+      return;
+    }
+
     try {
+      let agreementPath = null;
+      if (agreementFile) {
+        setIsUploadingAgreement(true);
+        try {
+          const cleanFileName = agreementFile.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+          const filePath = `petrol_pumps/agreements/${Date.now()}_${cleanFileName}`;
+          const { error: uploadError } = await supabase.storage
+            .from('tenant-documents')
+            .upload(filePath, agreementFile, { upsert: true });
+
+          if (uploadError) {
+            throw new Error('Failed to upload agreement document: ' + uploadError.message);
+          }
+          agreementPath = filePath;
+        } catch (uploadErr) {
+          setIsUploadingAgreement(false);
+          console.error(uploadErr);
+          alert('Upload Error: ' + uploadErr.message);
+          return;
+        } finally {
+          setIsUploadingAgreement(false);
+        }
+      }
+
       const rawGrace = cleanGracePeriod(pumpForm.grace_period);
       const intervalVal = Number(pumpForm.increase_interval_years) || 1;
       const fixedVal = Number(pumpForm.fixed_rent_years) || 1;
@@ -141,27 +172,35 @@ export default function ProjectsDashboard() {
         monthly_rent: Number(pumpForm.monthly_rent) || 0,
         fixed_rent_years: fixedVal,
         annual_increase_pct: Number(pumpForm.annual_increase_pct) || 0,
-        increase_interval_years: intervalVal
+        increase_interval_years: intervalVal,
+        agreement_url: agreementPath || null
       };
 
       let pumpId;
       try {
         pumpId = await db.petrol_pumps.add(newPump);
       } catch (addErr) {
-        if (addErr.message && (addErr.message.includes('fixed_rent_years') || addErr.message.includes('increase_interval_years') || addErr.code === '42703')) {
-          const metaString = `[FixedYears: ${fixedVal}] [Interval: ${intervalVal}]`;
+        if (addErr.message && (
+          addErr.message.includes('fixed_rent_years') || 
+          addErr.message.includes('increase_interval_years') || 
+          addErr.message.includes('agreement_url') || 
+          addErr.code === '42703'
+        )) {
+          const metaString = `[FixedYears: ${fixedVal}] [Interval: ${intervalVal}]${agreementPath ? ` [Agreement: ${agreementPath}]` : ''}`;
           const fallbackPump = { 
             ...newPump,
             grace_period: rawGrace ? `${rawGrace} ${metaString}` : metaString
           };
           delete fallbackPump.fixed_rent_years;
           delete fallbackPump.increase_interval_years;
+          delete fallbackPump.agreement_url;
           pumpId = await db.petrol_pumps.add(fallbackPump);
         } else {
           throw addErr;
         }
       }
 
+      setAgreementFile(null);
       setIsCreatingPump(false);
       setPumpForm({
         name: '',
@@ -467,9 +506,16 @@ export default function ProjectsDashboard() {
                       {pump.lease_start_date && (
                         <span>Period: {pump.lease_start_date} ~ {pump.lease_end_date || 'Ongoing'}</span>
                       )}
-                      <span className="badge" style={{ backgroundColor: '#10b981', color: '#fff', padding: '0.2rem 0.5rem', borderRadius: '10px', fontSize: '0.7rem' }}>
-                        Active Lease
-                      </span>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        {getPumpAgreementUrl(pump) && (
+                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem', color: 'var(--color-primary)', fontWeight: 600, fontSize: '0.72rem' }}>
+                            <FileText size={12} /> Agreement Attached
+                          </span>
+                        )}
+                        <span className="badge" style={{ backgroundColor: '#10b981', color: '#fff', padding: '0.2rem 0.5rem', borderRadius: '10px', fontSize: '0.7rem' }}>
+                          Active Lease
+                        </span>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -709,10 +755,39 @@ export default function ProjectsDashboard() {
                 Rent will remain fixed for the first {pumpForm.fixed_rent_years || 1} year{Number(pumpForm.fixed_rent_years || 1) > 1 ? 's' : ''}, and then increment by {pumpForm.annual_increase_pct || 0}% every {pumpForm.increase_interval_years || 1} year{Number(pumpForm.increase_interval_years || 1) > 1 ? 's' : ''}.
               </p>
 
+              <div className="form-group" style={{ marginBottom: '1.25rem' }}>
+                <label className="form-label" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <span>
+                    Lease Agreement Document <span style={{ color: '#ef4444' }}>* (Compulsory)</span>
+                  </span>
+                  <span style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>PDF or Scanned Image</span>
+                </label>
+                <input 
+                  type="file" 
+                  accept=".pdf,image/*,.doc,.docx"
+                  className="input-field" 
+                  required
+                  onChange={e => {
+                    const file = e.target.files[0];
+                    setAgreementFile(file || null);
+                  }}
+                />
+                {agreementFile && (
+                  <div style={{ marginTop: '0.4rem', fontSize: '0.825rem', color: 'var(--color-primary)', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                    <Paperclip size={14} /> Attached: {agreementFile.name} ({(agreementFile.size / 1024).toFixed(1)} KB)
+                  </div>
+                )}
+              </div>
+
               <div className="modal-footer">
                 <button type="button" className="btn btn-secondary" onClick={() => setIsCreatingPump(false)}>Cancel</button>
-                <button type="submit" className="btn btn-primary" style={{ backgroundColor: '#ef4444', borderColor: '#ef4444' }}>
-                  Save & Open Petrol Pump
+                <button 
+                  type="submit" 
+                  className="btn btn-primary" 
+                  style={{ backgroundColor: '#ef4444', borderColor: '#ef4444' }} 
+                  disabled={isUploadingAgreement}
+                >
+                  {isUploadingAgreement ? 'Uploading Agreement...' : 'Save & Open Petrol Pump'}
                 </button>
               </div>
             </form>
