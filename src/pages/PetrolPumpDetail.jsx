@@ -258,6 +258,588 @@ const PetrolPumpReceiptPrint = ({ printData, innerRef, pump, appSettings }) => {
   );
 };
 
+// Printable Collections Report for Petrol Pump
+const PetrolPumpCollectionsReportPrint = ({
+  pump,
+  pumpCollections,
+  innerRef,
+  appSettings,
+  getEnrichedPaymentData,
+  currentExpectedMonthlyRent
+}) => {
+  const [logoUrl, setLogoUrl] = useState('');
+  const [signatureUrl, setSignatureUrl] = useState('');
+
+  useEffect(() => {
+    if (appSettings?.watermark_url) {
+      supabase.storage
+        .from('tenant-documents')
+        .createSignedUrl(appSettings.watermark_url, 3600)
+        .then(({ data }) => {
+          if (data) setLogoUrl(data.signedUrl);
+        });
+    }
+    if (appSettings?.auth_signature_url) {
+      supabase.storage
+        .from('tenant-documents')
+        .createSignedUrl(appSettings.auth_signature_url, 3600)
+        .then(({ data }) => {
+          if (data) setSignatureUrl(data.signedUrl);
+        });
+    }
+  }, [appSettings?.watermark_url, appSettings?.auth_signature_url]);
+
+  if (!pump) return <div ref={innerRef}></div>;
+
+  const totalCollected = (pumpCollections || []).reduce((sum, c) => sum + Number(c.amount_paid || 0), 0);
+  const formattedDate = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+  const formattedTime = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+  return (
+    <div ref={innerRef} className="print-pump-collections-wrapper" style={{ display: 'none', padding: '24px', fontFamily: 'system-ui, -apple-system, Segoe UI, Roboto, sans-serif', color: '#0f172a' }}>
+      <style type="text/css" media="print">
+        {`
+          @page { size: landscape; margin: 10mm; }
+          .print-pump-collections-wrapper { display: block !important; }
+          body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+          table { page-break-inside: auto; }
+          tr { page-break-inside: avoid; page-break-after: auto; }
+          thead { display: table-header-group; }
+          tfoot { display: table-footer-group; }
+        `}
+      </style>
+
+      {/* Header */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '2px solid #0f172a', paddingBottom: '16px', marginBottom: '16px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+          {logoUrl && (
+            <img
+              src={logoUrl}
+              alt="Logo"
+              style={{ maxHeight: '70px', maxWidth: '100px', objectFit: 'contain', mixBlendMode: 'multiply' }}
+            />
+          )}
+          <div>
+            <h1 style={{ margin: 0, fontSize: '20px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+              POLICE WELFARE PETROL PUMP — LEASE RENT COLLECTIONS REPORT
+            </h1>
+            <h2 style={{ margin: '4px 0 0 0', fontSize: '14px', fontWeight: 600, color: '#334155' }}>
+              Site: {pump.name} {pump.location ? `• Location: ${pump.location}` : ''} {pump.total_area ? `• Area: ${pump.total_area}` : ''}
+            </h2>
+          </div>
+        </div>
+
+        <div style={{ textAlign: 'right', fontSize: '11px', color: '#475569' }}>
+          <p style={{ margin: 0 }}><strong>Printed On:</strong> {formattedDate} {formattedTime}</p>
+          <p style={{ margin: '2px 0 0 0' }}><strong>Total Receipts:</strong> {(pumpCollections || []).length}</p>
+          <p style={{ margin: '2px 0 0 0' }}><strong>Lease Period:</strong> {pump.total_lease_period || '15 Years'}</p>
+        </div>
+      </div>
+
+      {/* Summary Box */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '10px', marginBottom: '16px', fontSize: '11px' }}>
+        <div style={{ padding: '8px 12px', backgroundColor: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '4px' }}>
+          <span style={{ color: '#64748b', fontSize: '10px', textTransform: 'uppercase', fontWeight: 600 }}>Total Rent Collected</span>
+          <p style={{ margin: '3px 0 0 0', fontSize: '14px', fontWeight: 700, color: '#0f766e' }}>
+            Rs. {totalCollected.toLocaleString()}
+          </p>
+        </div>
+        <div style={{ padding: '8px 12px', backgroundColor: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '4px' }}>
+          <span style={{ color: '#64748b', fontSize: '10px', textTransform: 'uppercase', fontWeight: 600 }}>Current Expected Rent</span>
+          <p style={{ margin: '3px 0 0 0', fontSize: '14px', fontWeight: 700, color: '#2563eb' }}>
+            Rs. {Number(currentExpectedMonthlyRent || pump.monthly_rent || 0).toLocaleString()} / Mo
+          </p>
+        </div>
+        <div style={{ padding: '8px 12px', backgroundColor: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '4px' }}>
+          <span style={{ color: '#64748b', fontSize: '10px', textTransform: 'uppercase', fontWeight: 600 }}>Base Starting Rent</span>
+          <p style={{ margin: '3px 0 0 0', fontSize: '14px', fontWeight: 700 }}>
+            Rs. {Number(pump.monthly_rent || 0).toLocaleString()} / Mo
+          </p>
+        </div>
+        <div style={{ padding: '8px 12px', backgroundColor: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '4px' }}>
+          <span style={{ color: '#64748b', fontSize: '10px', textTransform: 'uppercase', fontWeight: 600 }}>Lease Duration</span>
+          <p style={{ margin: '3px 0 0 0', fontSize: '12px', fontWeight: 600, color: '#334155' }}>
+            {pump.lease_start_date ? `${formatDate(pump.lease_start_date)} to ${formatDate(pump.lease_end_date)}` : pump.total_lease_period || '15 Years'}
+          </p>
+        </div>
+      </div>
+
+      {/* Table */}
+      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '11px', lineHeight: 1.4 }}>
+        <thead>
+          <tr style={{ backgroundColor: '#f1f5f9', borderTop: '1px solid #cbd5e1', borderBottom: '2px solid #0f172a' }}>
+            <th style={{ padding: '8px 6px', textAlign: 'center', width: '35px', fontWeight: 700, borderRight: '1px solid #cbd5e1' }}>#</th>
+            <th style={{ padding: '8px 8px', textAlign: 'center', width: '110px', fontWeight: 700, borderRight: '1px solid #cbd5e1' }}>Receipt #</th>
+            <th style={{ padding: '8px 8px', textAlign: 'center', width: '110px', fontWeight: 700, borderRight: '1px solid #cbd5e1' }}>Period From</th>
+            <th style={{ padding: '8px 8px', textAlign: 'center', width: '110px', fontWeight: 700, borderRight: '1px solid #cbd5e1' }}>Period To</th>
+            <th style={{ padding: '8px 8px', textAlign: 'center', width: '100px', fontWeight: 700, borderRight: '1px solid #cbd5e1' }}>Payment Date</th>
+            <th style={{ padding: '8px 8px', textAlign: 'right', width: '130px', fontWeight: 700, borderRight: '1px solid #cbd5e1' }}>Amount Paid</th>
+            <th style={{ padding: '8px 8px', textAlign: 'center', width: '120px', fontWeight: 700, borderRight: '1px solid #cbd5e1' }}>Payment Mode</th>
+            <th style={{ padding: '8px 8px', textAlign: 'left', fontWeight: 700 }}>Notes / Remarks</th>
+          </tr>
+        </thead>
+        <tbody>
+          {(pumpCollections || []).length === 0 ? (
+            <tr>
+              <td colSpan="8" style={{ textAlign: 'center', padding: '24px', color: '#64748b' }}>
+                No rent collections recorded yet.
+              </td>
+            </tr>
+          ) : (
+            pumpCollections.map((col, idx) => {
+              const enriched = getEnrichedPaymentData ? getEnrichedPaymentData(col) : col;
+              const fromText = enriched?.period_from ? formatDate(enriched.period_from) : (col.month || '—');
+              const toText = enriched?.period_to ? formatDate(enriched.period_to) : (col.month || '—');
+              const cleanNotes = (col.notes || '').replace(/\[Attachment:\s*[^\]]+\]/g, '').trim();
+
+              return (
+                <tr
+                  key={col.id}
+                  style={{
+                    backgroundColor: idx % 2 === 0 ? '#ffffff' : '#f8fafc',
+                    borderBottom: '1px solid #e2e8f0',
+                  }}
+                >
+                  <td style={{ padding: '6px', textAlign: 'center', borderRight: '1px solid #e2e8f0', color: '#64748b' }}>
+                    {idx + 1}
+                  </td>
+                  <td style={{ padding: '6px 8px', textAlign: 'center', fontWeight: 700, borderRight: '1px solid #e2e8f0' }}>
+                    {col.receipt_no}
+                  </td>
+                  <td style={{ padding: '6px 8px', textAlign: 'center', borderRight: '1px solid #e2e8f0', fontFamily: 'monospace' }}>
+                    {fromText}
+                  </td>
+                  <td style={{ padding: '6px 8px', textAlign: 'center', borderRight: '1px solid #e2e8f0', fontFamily: 'monospace' }}>
+                    {toText}
+                  </td>
+                  <td style={{ padding: '6px 8px', textAlign: 'center', borderRight: '1px solid #e2e8f0' }}>
+                    {formatDate(col.date)}
+                  </td>
+                  <td style={{ padding: '6px 8px', textAlign: 'right', fontWeight: 700, color: '#0f766e', borderRight: '1px solid #e2e8f0' }}>
+                    Rs. {Number(col.amount_paid || 0).toLocaleString()}
+                  </td>
+                  <td style={{ padding: '6px 8px', textAlign: 'center', borderRight: '1px solid #e2e8f0' }}>
+                    {col.payment_method || 'Bank Transfer'}
+                  </td>
+                  <td style={{ padding: '6px 8px', color: '#475569', fontSize: '10.5px' }}>
+                    {cleanNotes || '—'}
+                  </td>
+                </tr>
+              );
+            })
+          )}
+        </tbody>
+        {(pumpCollections || []).length > 0 && (
+          <tfoot>
+            <tr style={{ backgroundColor: '#f1f5f9', borderTop: '2px solid #0f172a', borderBottom: '2px solid #0f172a', fontWeight: 700 }}>
+              <td colSpan="5" style={{ padding: '8px', textAlign: 'left', borderRight: '1px solid #cbd5e1' }}>
+                GRAND TOTAL AMOUNT COLLECTED ({pumpCollections.length} TRANSACTIONS)
+              </td>
+              <td style={{ padding: '8px', textAlign: 'right', color: '#0f766e', borderRight: '1px solid #cbd5e1' }}>
+                Rs. {totalCollected.toLocaleString()}
+              </td>
+              <td colSpan="2" style={{ padding: '8px', textAlign: 'center', color: '#64748b', fontSize: '10px' }}>
+                POLICE WELFARE LEASE RECORD
+              </td>
+            </tr>
+          </tfoot>
+        )}
+      </table>
+
+      {/* Signature Section */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '40px', paddingTop: '20px', pageBreakInside: 'avoid', fontSize: '11px', color: '#334155' }}>
+        <div style={{ textAlign: 'center', width: '200px' }}>
+          <div style={{ borderTop: '1px solid #0f172a', paddingTop: '6px', fontWeight: 600 }}>Prepared By</div>
+        </div>
+        <div style={{ textAlign: 'center', width: '200px' }}>
+          <div style={{ borderTop: '1px solid #0f172a', paddingTop: '6px', fontWeight: 600 }}>Checked / Verified By</div>
+        </div>
+        <div style={{ textAlign: 'center', width: '220px' }}>
+          {signatureUrl && (
+            <img 
+              src={signatureUrl} 
+              alt="Signature" 
+              style={{ maxHeight: '45px', marginBottom: '4px', objectFit: 'contain', mixBlendMode: 'multiply' }} 
+            />
+          )}
+          <div style={{ borderTop: '1px solid #0f172a', paddingTop: '6px', fontWeight: 600 }}>Authorized Signature & Stamp</div>
+          {appSettings?.auth_name && <div style={{ fontSize: '10px', color: '#64748b' }}>{appSettings.auth_name}</div>}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// Printable Rent Escalation Schedule Report for Petrol Pump
+const PetrolPumpScheduleReportPrint = ({
+  pump,
+  escalationSchedule,
+  innerRef,
+  appSettings
+}) => {
+  const [logoUrl, setLogoUrl] = useState('');
+  const [signatureUrl, setSignatureUrl] = useState('');
+
+  useEffect(() => {
+    if (appSettings?.watermark_url) {
+      supabase.storage
+        .from('tenant-documents')
+        .createSignedUrl(appSettings.watermark_url, 3600)
+        .then(({ data }) => {
+          if (data) setLogoUrl(data.signedUrl);
+        });
+    }
+    if (appSettings?.auth_signature_url) {
+      supabase.storage
+        .from('tenant-documents')
+        .createSignedUrl(appSettings.auth_signature_url, 3600)
+        .then(({ data }) => {
+          if (data) setSignatureUrl(data.signedUrl);
+        });
+    }
+  }, [appSettings?.watermark_url, appSettings?.auth_signature_url]);
+
+  if (!pump) return <div ref={innerRef}></div>;
+
+  const totalProjected = (escalationSchedule || []).reduce((sum, item) => sum + (item.annualRent || 0), 0);
+  const formattedDate = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+  const formattedTime = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+  return (
+    <div ref={innerRef} className="print-pump-schedule-wrapper" style={{ display: 'none', padding: '24px', fontFamily: 'system-ui, -apple-system, Segoe UI, Roboto, sans-serif', color: '#0f172a' }}>
+      <style type="text/css" media="print">
+        {`
+          @page { size: landscape; margin: 10mm; }
+          .print-pump-schedule-wrapper { display: block !important; }
+          body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+          table { page-break-inside: auto; }
+          tr { page-break-inside: avoid; page-break-after: auto; }
+          thead { display: table-header-group; }
+          tfoot { display: table-footer-group; }
+        `}
+      </style>
+
+      {/* Header */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '2px solid #0f172a', paddingBottom: '16px', marginBottom: '16px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+          {logoUrl && (
+            <img
+              src={logoUrl}
+              alt="Logo"
+              style={{ maxHeight: '70px', maxWidth: '100px', objectFit: 'contain', mixBlendMode: 'multiply' }}
+            />
+          )}
+          <div>
+            <h1 style={{ margin: 0, fontSize: '20px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+              POLICE WELFARE PETROL PUMP — RENT ESCALATION SCHEDULE
+            </h1>
+            <h2 style={{ margin: '4px 0 0 0', fontSize: '14px', fontWeight: 600, color: '#334155' }}>
+              Site: {pump.name} {pump.location ? `• Location: ${pump.location}` : ''} {pump.total_area ? `• Area: ${pump.total_area}` : ''}
+            </h2>
+          </div>
+        </div>
+
+        <div style={{ textAlign: 'right', fontSize: '11px', color: '#475569' }}>
+          <p style={{ margin: 0 }}><strong>Printed On:</strong> {formattedDate} {formattedTime}</p>
+          <p style={{ margin: '2px 0 0 0' }}><strong>Total Schedule:</strong> {escalationSchedule.length} Years</p>
+          <p style={{ margin: '2px 0 0 0' }}><strong>Deed Reg Date:</strong> {pump.lease_deed_reg_date || 'N/A'}</p>
+        </div>
+      </div>
+
+      {/* Terms Summary Cards */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '10px', marginBottom: '16px', fontSize: '11px' }}>
+        <div style={{ padding: '8px 12px', backgroundColor: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '4px' }}>
+          <span style={{ color: '#64748b', fontSize: '10px', textTransform: 'uppercase', fontWeight: 600 }}>Base Starting Rent</span>
+          <p style={{ margin: '3px 0 0 0', fontSize: '14px', fontWeight: 700 }}>
+            Rs. {Number(pump.monthly_rent || 0).toLocaleString()} / Mo
+          </p>
+        </div>
+        <div style={{ padding: '8px 12px', backgroundColor: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '4px' }}>
+          <span style={{ color: '#64748b', fontSize: '10px', textTransform: 'uppercase', fontWeight: 600 }}>Fixed Rent Period</span>
+          <p style={{ margin: '3px 0 0 0', fontSize: '13px', fontWeight: 700, color: '#0f766e' }}>
+            {getPumpFixedRentYears(pump) === 0 ? 'None (0 Years)' : `${getPumpFixedRentYears(pump)} Year${getPumpFixedRentYears(pump) > 1 ? 's' : ''}`}
+          </p>
+        </div>
+        <div style={{ padding: '8px 12px', backgroundColor: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '4px' }}>
+          <span style={{ color: '#64748b', fontSize: '10px', textTransform: 'uppercase', fontWeight: 600 }}>Rent Escalation</span>
+          <p style={{ margin: '3px 0 0 0', fontSize: '13px', fontWeight: 700, color: '#2563eb' }}>
+            +{pump.annual_increase_pct || 0}% every {getPumpIntervalYears(pump)} yr{getPumpIntervalYears(pump) > 1 ? 's' : ''}
+          </p>
+        </div>
+        <div style={{ padding: '8px 12px', backgroundColor: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '4px' }}>
+          <span style={{ color: '#64748b', fontSize: '10px', textTransform: 'uppercase', fontWeight: 600 }}>Total Projected Value</span>
+          <p style={{ margin: '3px 0 0 0', fontSize: '14px', fontWeight: 700, color: '#7c3aed' }}>
+            Rs. {totalProjected.toLocaleString()}
+          </p>
+        </div>
+      </div>
+
+      {/* Table */}
+      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '11px', lineHeight: 1.4 }}>
+        <thead>
+          <tr style={{ backgroundColor: '#f1f5f9', borderTop: '1px solid #cbd5e1', borderBottom: '2px solid #0f172a' }}>
+            <th style={{ padding: '8px 8px', textAlign: 'center', width: '80px', fontWeight: 700, borderRight: '1px solid #cbd5e1' }}>Lease Year</th>
+            <th style={{ padding: '8px 10px', textAlign: 'center', width: '220px', fontWeight: 700, borderRight: '1px solid #cbd5e1' }}>Duration Period</th>
+            <th style={{ padding: '8px 10px', textAlign: 'right', width: '140px', fontWeight: 700, borderRight: '1px solid #cbd5e1' }}>Monthly Rent</th>
+            <th style={{ padding: '8px 10px', textAlign: 'right', width: '160px', fontWeight: 700, borderRight: '1px solid #cbd5e1' }}>Annual Total Rent</th>
+            <th style={{ padding: '8px 10px', textAlign: 'center', width: '120px', fontWeight: 700, borderRight: '1px solid #cbd5e1' }}>Increase Rate</th>
+            <th style={{ padding: '8px 10px', textAlign: 'center', width: '110px', fontWeight: 700 }}>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          {escalationSchedule.map((item, idx) => (
+            <tr
+              key={item.yearNumber}
+              style={{
+                backgroundColor: item.isCurrentYear ? '#dcfce7' : (idx % 2 === 0 ? '#ffffff' : '#f8fafc'),
+                borderBottom: '1px solid #e2e8f0',
+                fontWeight: item.isCurrentYear ? 700 : 400
+              }}
+            >
+              <td style={{ padding: '6px', textAlign: 'center', borderRight: '1px solid #e2e8f0' }}>
+                Year {item.yearNumber}
+              </td>
+              <td style={{ padding: '6px 10px', textAlign: 'center', borderRight: '1px solid #e2e8f0', fontFamily: 'monospace' }}>
+                {formatDate(item.startDate)} to {formatDate(item.endDate)}
+              </td>
+              <td style={{ padding: '6px 10px', textAlign: 'right', borderRight: '1px solid #e2e8f0', fontWeight: 600 }}>
+                Rs. {Number(item.monthlyRent || 0).toLocaleString()}
+              </td>
+              <td style={{ padding: '6px 10px', textAlign: 'right', borderRight: '1px solid #e2e8f0', fontWeight: 700, color: '#0f766e' }}>
+                Rs. {Number(item.annualRent || 0).toLocaleString()}
+              </td>
+              <td style={{ padding: '6px 10px', textAlign: 'center', borderRight: '1px solid #e2e8f0' }}>
+                {item.yearNumber === 1 ? (
+                  <span style={{ color: '#64748b' }}>Base Rate</span>
+                ) : item.isFixedPeriod ? (
+                  <span style={{ color: '#64748b', fontSize: '10px' }}>Fixed Period</span>
+                ) : item.isEscalationYear ? (
+                  <span style={{ color: '#16a34a', fontWeight: 700 }}>+{item.increaseRate}% ↑</span>
+                ) : (
+                  <span style={{ color: '#94a3b8' }}>Same Rate</span>
+                )}
+              </td>
+              <td style={{ padding: '6px 10px', textAlign: 'center' }}>
+                {item.isCurrentYear ? (
+                  <span style={{ backgroundColor: '#16a34a', color: '#fff', padding: '1px 6px', borderRadius: '4px', fontSize: '9.5px', fontWeight: 700 }}>
+                    CURRENT YEAR
+                  </span>
+                ) : item.isPastYear ? (
+                  <span style={{ color: '#64748b', fontSize: '10px' }}>Completed</span>
+                ) : (
+                  <span style={{ color: '#94a3b8', fontSize: '10px' }}>Upcoming</span>
+                )}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+        <tfoot>
+          <tr style={{ backgroundColor: '#f1f5f9', borderTop: '2px solid #0f172a', borderBottom: '2px solid #0f172a', fontWeight: 700 }}>
+            <td colSpan="3" style={{ padding: '8px', textAlign: 'left', borderRight: '1px solid #cbd5e1' }}>
+              TOTAL PROJECTED LEASE VALUE ({escalationSchedule.length} YEARS)
+            </td>
+            <td style={{ padding: '8px 10px', textAlign: 'right', color: '#0f766e', borderRight: '1px solid #cbd5e1', fontSize: '12px' }}>
+              Rs. {totalProjected.toLocaleString()}
+            </td>
+            <td colSpan="2" style={{ padding: '8px', textAlign: 'center', color: '#64748b', fontSize: '10px' }}>
+              POLICE WELFARE PETROL PUMP
+            </td>
+          </tr>
+        </tfoot>
+      </table>
+
+      {/* Signature Section */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '40px', paddingTop: '20px', pageBreakInside: 'avoid', fontSize: '11px', color: '#334155' }}>
+        <div style={{ textAlign: 'center', width: '200px' }}>
+          <div style={{ borderTop: '1px solid #0f172a', paddingTop: '6px', fontWeight: 600 }}>Prepared By</div>
+        </div>
+        <div style={{ textAlign: 'center', width: '200px' }}>
+          <div style={{ borderTop: '1px solid #0f172a', paddingTop: '6px', fontWeight: 600 }}>Checked / Verified By</div>
+        </div>
+        <div style={{ textAlign: 'center', width: '220px' }}>
+          {signatureUrl && (
+            <img 
+              src={signatureUrl} 
+              alt="Signature" 
+              style={{ maxHeight: '45px', marginBottom: '4px', objectFit: 'contain', mixBlendMode: 'multiply' }} 
+            />
+          )}
+          <div style={{ borderTop: '1px solid #0f172a', paddingTop: '6px', fontWeight: 600 }}>Authorized Signature & Stamp</div>
+          {appSettings?.auth_name && <div style={{ fontSize: '10px', color: '#64748b' }}>{appSettings.auth_name}</div>}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// Printable Lease Summary Document for Petrol Pump
+const PetrolPumpLeaseSummaryPrint = ({
+  pump,
+  innerRef,
+  appSettings,
+  currentExpectedMonthlyRent,
+  totalPaidAllTime
+}) => {
+  const [logoUrl, setLogoUrl] = useState('');
+  const [signatureUrl, setSignatureUrl] = useState('');
+
+  useEffect(() => {
+    if (appSettings?.watermark_url) {
+      supabase.storage
+        .from('tenant-documents')
+        .createSignedUrl(appSettings.watermark_url, 3600)
+        .then(({ data }) => {
+          if (data) setLogoUrl(data.signedUrl);
+        });
+    }
+    if (appSettings?.auth_signature_url) {
+      supabase.storage
+        .from('tenant-documents')
+        .createSignedUrl(appSettings.auth_signature_url, 3600)
+        .then(({ data }) => {
+          if (data) setSignatureUrl(data.signedUrl);
+        });
+    }
+  }, [appSettings?.watermark_url, appSettings?.auth_signature_url]);
+
+  if (!pump) return <div ref={innerRef}></div>;
+
+  const formattedDate = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+
+  return (
+    <div ref={innerRef} className="print-pump-summary-wrapper" style={{ display: 'none', padding: '30px', fontFamily: 'system-ui, -apple-system, Segoe UI, Roboto, sans-serif', color: '#0f172a' }}>
+      <style type="text/css" media="print">
+        {`
+          @page { size: portrait; margin: 12mm; }
+          .print-pump-summary-wrapper { display: block !important; }
+          body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+        `}
+      </style>
+
+      {/* Header */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '2px solid #0f172a', paddingBottom: '16px', marginBottom: '20px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+          {logoUrl && (
+            <img
+              src={logoUrl}
+              alt="Logo"
+              style={{ maxHeight: '70px', maxWidth: '100px', objectFit: 'contain', mixBlendMode: 'multiply' }}
+            />
+          )}
+          <div>
+            <h1 style={{ margin: 0, fontSize: '18px', fontWeight: 800, textTransform: 'uppercase' }}>
+              POLICE WELFARE PETROL PUMP
+            </h1>
+            <h2 style={{ margin: '4px 0 0 0', fontSize: '14px', fontWeight: 600, color: '#334155' }}>
+              LEASE AGREEMENT & PROPERTY RECORD SUMMARY
+            </h2>
+          </div>
+        </div>
+
+        <div style={{ textAlign: 'right', fontSize: '11px', color: '#475569' }}>
+          <p style={{ margin: 0 }}><strong>Date:</strong> {formattedDate}</p>
+          <p style={{ margin: '2px 0 0 0' }}><strong>Status:</strong> Active Lease</p>
+        </div>
+      </div>
+
+      {/* Parameters Grid */}
+      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '11.5px', marginBottom: '25px', border: '1px solid #cbd5e1' }}>
+        <tbody>
+          <tr style={{ backgroundColor: '#f8fafc', borderBottom: '1px solid #cbd5e1' }}>
+            <td style={{ padding: '8px 12px', fontWeight: 700, width: '220px', borderRight: '1px solid #cbd5e1' }}>Site / Property Name</td>
+            <td style={{ padding: '8px 12px', fontWeight: 600 }}>{pump.name}</td>
+          </tr>
+          <tr style={{ borderBottom: '1px solid #cbd5e1' }}>
+            <td style={{ padding: '8px 12px', fontWeight: 700, borderRight: '1px solid #cbd5e1' }}>Location</td>
+            <td style={{ padding: '8px 12px' }}>{pump.location || 'N/A'}</td>
+          </tr>
+          <tr style={{ backgroundColor: '#f8fafc', borderBottom: '1px solid #cbd5e1' }}>
+            <td style={{ padding: '8px 12px', fontWeight: 700, borderRight: '1px solid #cbd5e1' }}>Total Area</td>
+            <td style={{ padding: '8px 12px' }}>{pump.total_area || 'N/A'}</td>
+          </tr>
+          <tr style={{ borderBottom: '1px solid #cbd5e1' }}>
+            <td style={{ padding: '8px 12px', fontWeight: 700, borderRight: '1px solid #cbd5e1' }}>Date of Lease Deed Registration</td>
+            <td style={{ padding: '8px 12px' }}>{formatDate(pump.lease_deed_reg_date) || 'N/A'}</td>
+          </tr>
+          <tr style={{ backgroundColor: '#f8fafc', borderBottom: '1px solid #cbd5e1' }}>
+            <td style={{ padding: '8px 12px', fontWeight: 700, borderRight: '1px solid #cbd5e1' }}>Total Lease Period</td>
+            <td style={{ padding: '8px 12px', fontWeight: 600 }}>{pump.total_lease_period || '15 Years'}</td>
+          </tr>
+          <tr style={{ borderBottom: '1px solid #cbd5e1' }}>
+            <td style={{ padding: '8px 12px', fontWeight: 700, borderRight: '1px solid #cbd5e1' }}>Lease Start Date</td>
+            <td style={{ padding: '8px 12px' }}>{formatDate(pump.lease_start_date) || 'N/A'}</td>
+          </tr>
+          <tr style={{ backgroundColor: '#f8fafc', borderBottom: '1px solid #cbd5e1' }}>
+            <td style={{ padding: '8px 12px', fontWeight: 700, borderRight: '1px solid #cbd5e1' }}>Lease End Date</td>
+            <td style={{ padding: '8px 12px' }}>{formatDate(pump.lease_end_date) || 'N/A'}</td>
+          </tr>
+          <tr style={{ borderBottom: '1px solid #cbd5e1' }}>
+            <td style={{ padding: '8px 12px', fontWeight: 700, borderRight: '1px solid #cbd5e1' }}>Grace Period</td>
+            <td style={{ padding: '8px 12px' }}>{cleanGracePeriod(pump.grace_period) || 'None'}</td>
+          </tr>
+          <tr style={{ backgroundColor: '#f8fafc', borderBottom: '1px solid #cbd5e1' }}>
+            <td style={{ padding: '8px 12px', fontWeight: 700, borderRight: '1px solid #cbd5e1' }}>Base Starting Monthly Rent</td>
+            <td style={{ padding: '8px 12px', fontWeight: 700, color: '#0f766e' }}>
+              Rs. {Number(pump.monthly_rent || 0).toLocaleString()}
+            </td>
+          </tr>
+          <tr style={{ borderBottom: '1px solid #cbd5e1' }}>
+            <td style={{ padding: '8px 12px', fontWeight: 700, borderRight: '1px solid #cbd5e1' }}>Fixed Rent Period</td>
+            <td style={{ padding: '8px 12px' }}>
+              {getPumpFixedRentYears(pump) === 0 ? 'None (0 Years - Regular Escalation)' : `${getPumpFixedRentYears(pump)} Year(s) (No Increase)`}
+            </td>
+          </tr>
+          <tr style={{ backgroundColor: '#f8fafc', borderBottom: '1px solid #cbd5e1' }}>
+            <td style={{ padding: '8px 12px', fontWeight: 700, borderRight: '1px solid #cbd5e1' }}>Rent Escalation Terms</td>
+            <td style={{ padding: '8px 12px', fontWeight: 600 }}>
+              +{pump.annual_increase_pct || 0}% every {getPumpIntervalYears(pump)} year(s)
+            </td>
+          </tr>
+          <tr style={{ borderBottom: '1px solid #cbd5e1' }}>
+            <td style={{ padding: '8px 12px', fontWeight: 700, borderRight: '1px solid #cbd5e1' }}>Current Expected Monthly Rent</td>
+            <td style={{ padding: '8px 12px', fontWeight: 700, color: '#2563eb' }}>
+              Rs. {Number(currentExpectedMonthlyRent || 0).toLocaleString()} / Month
+            </td>
+          </tr>
+          <tr style={{ backgroundColor: '#f8fafc', borderBottom: '1px solid #cbd5e1' }}>
+            <td style={{ padding: '8px 12px', fontWeight: 700, borderRight: '1px solid #cbd5e1' }}>Total Rent Collected To Date</td>
+            <td style={{ padding: '8px 12px', fontWeight: 700, color: '#0f766e' }}>
+              Rs. {Number(totalPaidAllTime || 0).toLocaleString()}
+            </td>
+          </tr>
+          <tr>
+            <td style={{ padding: '8px 12px', fontWeight: 700, borderRight: '1px solid #cbd5e1' }}>Compulsory Lease Agreement</td>
+            <td style={{ padding: '8px 12px' }}>
+              {getPumpAgreementUrl(pump) ? 'Attached and Verified on File' : 'Missing / Pending Attachment'}
+            </td>
+          </tr>
+        </tbody>
+      </table>
+
+      {/* Signature Section */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '50px', paddingTop: '20px', pageBreakInside: 'avoid', fontSize: '11px', color: '#334155' }}>
+        <div style={{ textAlign: 'center', width: '200px' }}>
+          <div style={{ borderTop: '1px solid #0f172a', paddingTop: '6px', fontWeight: 600 }}>Prepared By</div>
+        </div>
+        <div style={{ textAlign: 'center', width: '200px' }}>
+          <div style={{ borderTop: '1px solid #0f172a', paddingTop: '6px', fontWeight: 600 }}>Checked / Verified By</div>
+        </div>
+        <div style={{ textAlign: 'center', width: '220px' }}>
+          {signatureUrl && (
+            <img 
+              src={signatureUrl} 
+              alt="Signature" 
+              style={{ maxHeight: '45px', marginBottom: '4px', objectFit: 'contain', mixBlendMode: 'multiply' }} 
+            />
+          )}
+          <div style={{ borderTop: '1px solid #0f172a', paddingTop: '6px', fontWeight: 600 }}>Authorized Signature & Stamp</div>
+          {appSettings?.auth_name && <div style={{ fontSize: '10px', color: '#64748b' }}>{appSettings.auth_name}</div>}
+        </div>
+      </div>
+    </div>
+  );
+};
+
 export default function PetrolPumpDetail({ currentUser }) {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -345,6 +927,24 @@ export default function PetrolPumpDetail({ currentUser }) {
   const printRef = useRef(null);
   const handlePrint = useReactToPrint({ contentRef: printRef });
 
+  const printCollectionsRef = useRef(null);
+  const handlePrintCollections = useReactToPrint({
+    contentRef: printCollectionsRef,
+    documentTitle: `${pump?.name || 'PetrolPump'}_Rent_Collections_Report`,
+  });
+
+  const printScheduleRef = useRef(null);
+  const handlePrintSchedule = useReactToPrint({
+    contentRef: printScheduleRef,
+    documentTitle: `${pump?.name || 'PetrolPump'}_Escalation_Schedule`,
+  });
+
+  const printLeaseSummaryRef = useRef(null);
+  const handlePrintLeaseSummary = useReactToPrint({
+    contentRef: printLeaseSummaryRef,
+    documentTitle: `${pump?.name || 'PetrolPump'}_Lease_Summary`,
+  });
+
   // Fetch petrol pump
   const allPumps = useSupabase('petrol_pumps') || [];
   const pump = useMemo(() => allPumps.find(p => p.id === id), [allPumps, id]);
@@ -356,6 +956,10 @@ export default function PetrolPumpDetail({ currentUser }) {
       .filter(c => c.petrol_pump_id === id)
       .sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0));
   }, [allCollections, id]);
+
+  const totalPaidAllTime = useMemo(() => {
+    return pumpCollections.reduce((sum, c) => sum + Number(c.amount_paid || 0), 0);
+  }, [pumpCollections]);
 
   // App settings for receipt branding
   const appSettingsList = useSupabase('app_settings') || [];
@@ -861,6 +1465,31 @@ export default function PetrolPumpDetail({ currentUser }) {
         appSettings={appSettings}
       />
 
+      {/* Hidden Print Report Components */}
+      <PetrolPumpCollectionsReportPrint
+        pump={pump}
+        pumpCollections={pumpCollections}
+        innerRef={printCollectionsRef}
+        appSettings={appSettings}
+        getEnrichedPaymentData={getEnrichedPaymentData}
+        currentExpectedMonthlyRent={currentExpectedMonthlyRent}
+      />
+
+      <PetrolPumpScheduleReportPrint
+        pump={pump}
+        escalationSchedule={escalationSchedule}
+        innerRef={printScheduleRef}
+        appSettings={appSettings}
+      />
+
+      <PetrolPumpLeaseSummaryPrint
+        pump={pump}
+        innerRef={printLeaseSummaryRef}
+        appSettings={appSettings}
+        currentExpectedMonthlyRent={currentExpectedMonthlyRent}
+        totalPaidAllTime={totalPaidAllTime}
+      />
+
       {/* Top Navigation & Action Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '1rem' }}>
         <button 
@@ -871,7 +1500,23 @@ export default function PetrolPumpDetail({ currentUser }) {
           <ArrowLeft size={16} /> All Properties
         </button>
 
-        <div style={{ display: 'flex', gap: '0.75rem' }}>
+        <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', alignItems: 'center' }}>
+          <button 
+            className="btn btn-secondary" 
+            onClick={handlePrintCollections}
+            style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', backgroundColor: '#eff6ff', color: 'var(--color-primary)', borderColor: '#bfdbfe', fontWeight: 600 }}
+            title="Print Full Rent Collections Ledger Report"
+          >
+            <Printer size={16} /> Print Collections Report
+          </button>
+          <button 
+            className="btn btn-secondary" 
+            onClick={handlePrintSchedule}
+            style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', backgroundColor: '#eff6ff', color: 'var(--color-primary)', borderColor: '#bfdbfe', fontWeight: 600 }}
+            title="Print Year-by-Year Escalation Schedule Report"
+          >
+            <Printer size={16} /> Print Escalation Schedule
+          </button>
           <button 
             className="btn btn-secondary" 
             onClick={() => setIsEditModalOpen(true)}
@@ -989,11 +1634,21 @@ export default function PetrolPumpDetail({ currentUser }) {
       {/* Tab 1: Lease Agreement Details */}
       {activeTab === 'overview' && (
         <div className="card">
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '0.5rem' }}>
             <h2 style={{ fontSize: '1.25rem', fontWeight: 700, margin: 0 }}>Full Lease Parameters</h2>
-            <button className="btn btn-secondary btn-sm" onClick={() => setIsEditModalOpen(true)}>
-              <Edit3 size={14} /> Edit
-            </button>
+            <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+              <button 
+                className="btn btn-secondary btn-sm" 
+                onClick={handlePrintLeaseSummary}
+                style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', backgroundColor: '#eff6ff', color: 'var(--color-primary)', borderColor: '#bfdbfe', fontWeight: 600 }}
+                title="Print Full Lease Parameters & Agreement Summary"
+              >
+                <Printer size={14} /> Print Lease Summary
+              </button>
+              <button className="btn btn-secondary btn-sm" onClick={() => setIsEditModalOpen(true)}>
+                <Edit3 size={14} /> Edit
+              </button>
+            </div>
           </div>
 
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1.25rem' }}>
@@ -1122,9 +1777,19 @@ export default function PetrolPumpDetail({ currentUser }) {
                   : `Rent is fixed for the first ${getPumpFixedRentYears(pump)} year${getPumpFixedRentYears(pump) > 1 ? 's' : ''}, then escalates by +${pump.annual_increase_pct || 0}% every ${getPumpIntervalYears(pump)} year${getPumpIntervalYears(pump) > 1 ? 's' : ''} as specified in the lease deed.`}
               </p>
             </div>
-            <span className="badge" style={{ backgroundColor: 'rgba(16, 185, 129, 0.1)', color: '#10b981', padding: '0.4rem 0.8rem', borderRadius: '8px', fontSize: '0.85rem' }}>
-              Current Active Year Highlighted
-            </span>
+            <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
+              <button 
+                className="btn btn-secondary" 
+                onClick={handlePrintSchedule}
+                style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', backgroundColor: '#eff6ff', color: 'var(--color-primary)', borderColor: '#bfdbfe', fontWeight: 600 }}
+                title="Print Year-by-Year Escalation Schedule Report"
+              >
+                <Printer size={16} /> Print Escalation Schedule
+              </button>
+              <span className="badge" style={{ backgroundColor: 'rgba(16, 185, 129, 0.1)', color: '#10b981', padding: '0.4rem 0.8rem', borderRadius: '8px', fontSize: '0.85rem' }}>
+                Current Active Year Highlighted
+              </span>
+            </div>
           </div>
 
           <div style={{ overflowX: 'auto' }}>
@@ -1280,7 +1945,19 @@ export default function PetrolPumpDetail({ currentUser }) {
 
           {/* Payment History Table */}
           <div className="card">
-            <h3 style={{ fontSize: '1.1rem', fontWeight: 700, marginBottom: '1rem' }}>All Collections & History</h3>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', flexWrap: 'wrap', gap: '0.5rem' }}>
+              <h3 style={{ fontSize: '1.1rem', fontWeight: 700, margin: 0 }}>All Collections & History</h3>
+              {pumpCollections.length > 0 && (
+                <button 
+                  className="btn btn-secondary" 
+                  onClick={handlePrintCollections}
+                  style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', backgroundColor: '#eff6ff', color: 'var(--color-primary)', borderColor: '#bfdbfe', fontWeight: 600 }}
+                  title="Print Full Rent Collections Ledger Report"
+                >
+                  <Printer size={16} /> Print Collections Report
+                </button>
+              )}
+            </div>
             {pumpCollections.length === 0 ? (
               <p style={{ color: 'var(--color-text-muted)', textAlign: 'center', padding: '2rem 0' }}>
                 No rent collections recorded yet. Click "Receive Rent" above to record a payment.
