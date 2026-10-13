@@ -202,6 +202,12 @@ const PetrolPumpReceiptPrint = ({ printData, innerRef, pump, appSettings }) => {
           {printData.payment_method && (
             <p style={{ margin: '4px 0' }}><strong>Payment Mode:</strong> {printData.payment_method}</p>
           )}
+          {(printData.payment_method === 'Cheque' || printData.cheque_no) && (
+            <>
+              {printData.cheque_no && <p style={{ margin: '4px 0' }}><strong>Cheque Number:</strong> {printData.cheque_no}</p>}
+              {printData.cheque_date && <p style={{ margin: '4px 0' }}><strong>Cheque Date:</strong> {formatDate(printData.cheque_date)}</p>}
+            </>
+          )}
         </div>
 
         {/* Financial Table */}
@@ -419,7 +425,12 @@ const PetrolPumpCollectionsReportPrint = ({
                     Rs. {Number(col.amount_paid || 0).toLocaleString()}
                   </td>
                   <td style={{ padding: '6px 8px', textAlign: 'center', borderRight: '1px solid #e2e8f0' }}>
-                    {col.payment_method || 'Bank Transfer'}
+                    <span style={{ fontWeight: 600 }}>{col.payment_method || 'Bank Transfer'}</span>
+                    {enriched?.cheque_no && (
+                      <span style={{ display: 'block', fontSize: '9px', color: '#1e40af', marginTop: '2px', fontWeight: 500 }}>
+                        #{enriched.cheque_no} {enriched.cheque_date ? `(${formatDate(enriched.cheque_date)})` : ''}
+                      </span>
+                    )}
                   </td>
                   <td style={{ padding: '6px 8px', color: '#475569', fontSize: '10.5px' }}>
                     {cleanNotes || '—'}
@@ -855,6 +866,8 @@ export default function PetrolPumpDetail({ currentUser }) {
   const [periodFrom, setPeriodFrom] = useState('');
   const [periodTo, setPeriodTo] = useState('');
   const [paymentMethod, setPaymentMethod] = useState('Bank Transfer');
+  const [chequeNo, setChequeNo] = useState('');
+  const [chequeDate, setChequeDate] = useState('');
   const [paymentNotes, setPaymentNotes] = useState('');
   const [printData, setPrintData] = useState(null);
   const [attachmentFile, setAttachmentFile] = useState(null);
@@ -1149,10 +1162,23 @@ export default function PetrolPumpDetail({ currentUser }) {
       }
     }
 
+    let chqNo = payment.cheque_no || payment.chequeNo || null;
+    let chqDate = payment.cheque_date || payment.chequeDate || null;
+    if (!chqNo && payment.notes) {
+      const match = payment.notes.match(/Cheque\s*(?:#|No|Number)?:\s*([^,\]]+)/i);
+      if (match) chqNo = match[1].trim();
+    }
+    if (!chqDate && payment.notes) {
+      const match = payment.notes.match(/Cheque\s*Date:\s*([^,\]]+)/i) || payment.notes.match(/Date:\s*([^,\]]+)/i);
+      if (match) chqDate = match[1].trim();
+    }
+
     return {
       ...payment,
       period_from: from,
-      period_to: to
+      period_to: to,
+      cheque_no: chqNo,
+      cheque_date: chqDate
     };
   };
 
@@ -1196,6 +1222,9 @@ export default function PetrolPumpDetail({ currentUser }) {
     setPeriodTo(eDate);
     setPaymentAmount(currentExpectedMonthlyRent);
     setPaymentDate(new Date().toISOString().split('T')[0]);
+    setPaymentMethod('Bank Transfer');
+    setChequeNo('');
+    setChequeDate('');
     setPaymentNotes('');
     setAttachmentFile(null);
     setAttachmentPreview(null);
@@ -1234,6 +1263,17 @@ export default function PetrolPumpDetail({ currentUser }) {
     e.preventDefault();
     if (!pump) return;
 
+    if (paymentMethod === 'Cheque') {
+      if (!chequeNo || !chequeNo.trim()) {
+        alert('Cheque Number is compulsory for Cheque payments.');
+        return;
+      }
+      if (!chequeDate) {
+        alert('Cheque Date is compulsory for Cheque payments.');
+        return;
+      }
+    }
+
     try {
       let uploadedPath = null;
       if (attachmentFile) {
@@ -1264,6 +1304,13 @@ export default function PetrolPumpDetail({ currentUser }) {
         ? `${periodFrom} to ${periodTo}`
         : selectedMonthStr;
 
+      const chequeNotes = paymentMethod === 'Cheque' ? `[Cheque #: ${chequeNo.trim()}, Date: ${chequeDate}]` : '';
+      const combinedNotes = [
+        chequeNotes,
+        uploadedPath ? `[Attachment: ${uploadedPath}]` : '',
+        paymentNotes ? paymentNotes.trim() : ''
+      ].filter(Boolean).join(' ');
+
       const newPayment = {
         petrol_pump_id: pump.id,
         month: durationLabel,
@@ -1273,7 +1320,9 @@ export default function PetrolPumpDetail({ currentUser }) {
         date: paymentDate,
         receipt_no: receiptNo,
         payment_method: paymentMethod,
-        notes: uploadedPath ? `[Attachment: ${uploadedPath}] ${paymentNotes}` : paymentNotes,
+        cheque_no: paymentMethod === 'Cheque' ? chequeNo.trim() : null,
+        cheque_date: paymentMethod === 'Cheque' ? chequeDate : null,
+        notes: combinedNotes,
         period_from: periodFrom,
         period_to: periodTo,
         attachment_url: uploadedPath
@@ -1282,8 +1331,15 @@ export default function PetrolPumpDetail({ currentUser }) {
       try {
         await db.petrol_pump_rent_collections.add(newPayment);
       } catch (insertErr) {
-        // Fallback gracefully if attachment_url or period_from/to columns haven't been added yet in DB
-        if (insertErr.message && (insertErr.message.includes('attachment_url') || insertErr.message.includes('period_from') || insertErr.message.includes('period_to') || insertErr.code === '42703')) {
+        // Fallback gracefully if attachment_url, period_from/to, or cheque columns haven't been added yet in DB
+        if (insertErr.message && (
+          insertErr.message.includes('attachment_url') || 
+          insertErr.message.includes('period_from') || 
+          insertErr.message.includes('period_to') || 
+          insertErr.message.includes('cheque_no') || 
+          insertErr.message.includes('cheque_date') || 
+          insertErr.code === '42703'
+        )) {
           const fallbackPayment = {
             petrol_pump_id: pump.id,
             month: durationLabel,
@@ -1293,7 +1349,7 @@ export default function PetrolPumpDetail({ currentUser }) {
             date: paymentDate,
             receipt_no: receiptNo,
             payment_method: paymentMethod,
-            notes: `${uploadedPath ? `[Attachment: ${uploadedPath}] ` : ''}Duration: ${periodFrom} to ${periodTo}. ${paymentNotes || ''}`
+            notes: `${combinedNotes} Duration: ${periodFrom} to ${periodTo}.`.trim()
           };
           await db.petrol_pump_rent_collections.add(fallbackPayment);
         } else {
@@ -1303,6 +1359,8 @@ export default function PetrolPumpDetail({ currentUser }) {
 
       setAttachmentFile(null);
       setAttachmentPreview(null);
+      setChequeNo('');
+      setChequeDate('');
 
       setIsPaymentModalOpen(false);
 
@@ -1998,6 +2056,11 @@ export default function PetrolPumpDetail({ currentUser }) {
                           <td style={{ padding: '0.75rem' }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
                               <span>{col.payment_method || 'Bank Transfer'}</span>
+                              {enriched?.cheque_no && (
+                                <span style={{ fontSize: '0.72rem', backgroundColor: '#eff6ff', color: '#1d4ed8', border: '1px solid #bfdbfe', padding: '1px 5px', borderRadius: '4px', fontWeight: 600 }}>
+                                  #{enriched.cheque_no}
+                                </span>
+                              )}
                               {getAttachmentPath(col) && (
                                 <button 
                                   type="button"
@@ -2173,6 +2236,49 @@ export default function PetrolPumpDetail({ currentUser }) {
                   <option value="Online">Online Deposit</option>
                 </select>
               </div>
+
+              {paymentMethod === 'Cheque' && (
+                <div style={{ 
+                  display: 'grid', 
+                  gridTemplateColumns: '1fr 1fr', 
+                  gap: '0.75rem', 
+                  marginBottom: '1rem', 
+                  padding: '0.85rem', 
+                  backgroundColor: '#eff6ff', 
+                  borderRadius: '8px', 
+                  border: '1px solid #bfdbfe' 
+                }}>
+                  <div className="form-group" style={{ margin: 0 }}>
+                    <label className="form-label" style={{ fontWeight: 600, color: '#1e40af', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      Cheque Number <span style={{ color: '#dc2626' }}>*</span>
+                    </label>
+                    <input 
+                      type="text" 
+                      name="cheque_no" 
+                      className="input-field" 
+                      required 
+                      value={chequeNo} 
+                      onChange={e => setChequeNo(e.target.value)} 
+                      placeholder="e.g. CHQ-556677" 
+                      style={{ borderColor: '#93c5fd', backgroundColor: '#ffffff' }}
+                    />
+                  </div>
+                  <div className="form-group" style={{ margin: 0 }}>
+                    <label className="form-label" style={{ fontWeight: 600, color: '#1e40af', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      Cheque Date <span style={{ color: '#dc2626' }}>*</span>
+                    </label>
+                    <input 
+                      type="date" 
+                      name="cheque_date" 
+                      className="input-field" 
+                      required 
+                      value={chequeDate} 
+                      onChange={e => setChequeDate(e.target.value)} 
+                      style={{ borderColor: '#93c5fd', backgroundColor: '#ffffff' }}
+                    />
+                  </div>
+                </div>
+              )}
 
               {/* Optional Cheque / Receipt Picture Attachment */}
               {(paymentMethod === 'Cheque' || paymentMethod === 'Online' || paymentMethod === 'Bank Transfer') && (

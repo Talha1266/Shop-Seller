@@ -5,6 +5,21 @@ import { Plus, X, Search, DollarSign, Printer, Trash2, Paperclip, Download } fro
 import { useReactToPrint } from 'react-to-print';
 import { useProject } from '../contexts/ProjectContext';
 import { supabase } from '../supabaseClient';
+export const getChequeDetailsFromRent = (payment) => {
+  if (!payment) return { chequeNo: '', chequeDate: '' };
+  let chqNo = payment.cheque_no || payment.chequeNo || '';
+  let chqDate = payment.cheque_date || payment.chequeDate || '';
+  if (!chqNo && payment.notes) {
+    const m = payment.notes.match(/Cheque\s*(?:#|No|Number)?:\s*([^,\]]+)/i);
+    if (m) chqNo = m[1].trim();
+  }
+  if (!chqDate && payment.notes) {
+    const m = payment.notes.match(/Cheque\s*Date:\s*([^,\]]+)/i) || payment.notes.match(/(?:Date):\s*([^,\]]+)/i);
+    if (m) chqDate = m[1].trim();
+  }
+  return { chequeNo: chqNo, chequeDate: chqDate };
+};
+
 const RentReceiptPrint = ({ printData, innerRef, projectName, appSettings }) => {
   const [signatureUrl, setSignatureUrl] = useState('');
   const [watermarkUrl, setWatermarkUrl] = useState('');
@@ -29,6 +44,11 @@ const RentReceiptPrint = ({ printData, innerRef, projectName, appSettings }) => 
   }, [appSettings?.auth_signature_url, appSettings?.watermark_url]);
 
   if (!printData) return <div ref={innerRef}></div>;
+
+  const chqInfo = {
+    chequeNo: printData.cheque_no || getChequeDetailsFromRent(printData).chequeNo,
+    chequeDate: printData.cheque_date || getChequeDetailsFromRent(printData).chequeDate
+  };
 
   return (
     <div ref={innerRef} style={{ padding: '40px', fontFamily: 'system-ui, sans-serif', display: 'none', position: 'relative' }} className="print-receipt-wrapper">
@@ -72,6 +92,15 @@ const RentReceiptPrint = ({ printData, innerRef, projectName, appSettings }) => 
           <p style={{ margin: '5px 0' }}><strong>Received From:</strong> {printData.tenantName}</p>
           <p style={{ margin: '5px 0' }}><strong>Shop Details:</strong> {printData.shopDetails}</p>
           <p style={{ margin: '5px 0' }}><strong>For Month:</strong> {printData.month}</p>
+          {printData.payment_method && (
+            <p style={{ margin: '5px 0' }}><strong>Payment Mode:</strong> {printData.payment_method}</p>
+          )}
+          {(printData.payment_method === 'Cheque' || chqInfo.chequeNo) && (
+            <>
+              {chqInfo.chequeNo && <p style={{ margin: '5px 0' }}><strong>Cheque Number:</strong> {chqInfo.chequeNo}</p>}
+              {chqInfo.chequeDate && <p style={{ margin: '5px 0' }}><strong>Cheque Date:</strong> {chqInfo.chequeDate}</p>}
+            </>
+          )}
         </div>
 
         <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '30px' }}>
@@ -344,6 +373,8 @@ export default function Rent({ currentUser }) {
   const [selectedSale, setSelectedSale] = useState(null);
   const [paymentDate, setPaymentDate] = useState(new Date().toISOString().split('T')[0]);
   const [paymentMethod, setPaymentMethod] = useState('Cash');
+  const [chequeNo, setChequeNo] = useState('');
+  const [chequeDate, setChequeDate] = useState('');
   const [attachmentFile, setAttachmentFile] = useState(null);
   const [attachmentPreview, setAttachmentPreview] = useState(null);
   const [isUploadingAttachment, setIsUploadingAttachment] = useState(false);
@@ -627,6 +658,17 @@ export default function Rent({ currentUser }) {
       return;
     }
 
+    if (paymentMethod === 'Cheque') {
+      if (!chequeNo || !chequeNo.trim()) {
+        alert('Cheque Number is compulsory for Cheque payments.');
+        return;
+      }
+      if (!chequeDate) {
+        alert('Cheque Date is compulsory for Cheque payments.');
+        return;
+      }
+    }
+
     const calculatedFine = calculateFine(selectedMonthString, paymentDate);
     const currentFine = isFineWaived ? 0 : (customFine !== null ? customFine : calculatedFine);
     const receiptNo = formData.get('receipt_no') || generateReceiptNo();
@@ -639,6 +681,11 @@ export default function Rent({ currentUser }) {
       notes = `[Fine Partial Maafi: Reduced from Rs. ${calculatedFine.toLocaleString()} to Rs. ${currentFine.toLocaleString()}] ` + notes;
     } else if (currentFine > 0) {
       notes = `Includes Rs. ${currentFine.toLocaleString()} late fine. ` + notes;
+    }
+
+    const chequeInfo = paymentMethod === 'Cheque' ? `[Cheque #: ${chequeNo.trim()}, Date: ${chequeDate}]` : '';
+    if (chequeInfo) {
+      notes = `${chequeInfo} ${notes}`.trim();
     }
 
     let uploadedPath = null;
@@ -684,6 +731,8 @@ export default function Rent({ currentUser }) {
       date: formData.get('date'),
       receipt_no: receiptNo,
       payment_method: paymentMethod,
+      cheque_no: paymentMethod === 'Cheque' ? chequeNo.trim() : null,
+      cheque_date: paymentMethod === 'Cheque' ? chequeDate : null,
       attachment_url: uploadedPath,
       notes: notes
     };
@@ -692,7 +741,13 @@ export default function Rent({ currentUser }) {
       try {
         await db.rent_collections.add(newPayment);
       } catch (insertErr) {
-        if (insertErr.message && (insertErr.message.includes('payment_method') || insertErr.message.includes('attachment_url') || insertErr.code === '42703')) {
+        if (insertErr.message && (
+          insertErr.message.includes('payment_method') || 
+          insertErr.message.includes('cheque_no') || 
+          insertErr.message.includes('cheque_date') || 
+          insertErr.message.includes('attachment_url') || 
+          insertErr.code === '42703'
+        )) {
           const fallbackPayment = {
             sale_id: selectedSale.id,
             month: selectedMonthString,
@@ -719,11 +774,16 @@ export default function Rent({ currentUser }) {
         fineWaived: isFineWaived || (calculatedFine > 0 && currentFine === 0),
         originalFine: calculatedFine,
         amount_paid: amount,
-        payment_method: paymentMethod
+        payment_method: paymentMethod,
+        cheque_no: paymentMethod === 'Cheque' ? chequeNo.trim() : null,
+        cheque_date: paymentMethod === 'Cheque' ? chequeDate : null
       });
 
       setAttachmentFile(null);
       setAttachmentPreview(null);
+      setChequeNo('');
+      setChequeDate('');
+      setPaymentMethod('Cash');
       setIsFineWaived(false);
       setCustomFine(null);
       setIsModalOpen(false);
@@ -1058,6 +1118,49 @@ export default function Rent({ currentUser }) {
                   </select>
                 </div>
 
+                {paymentMethod === 'Cheque' && (
+                  <div style={{ 
+                    display: 'grid', 
+                    gridTemplateColumns: '1fr 1fr', 
+                    gap: '0.75rem', 
+                    marginBottom: '1rem', 
+                    padding: '0.85rem', 
+                    backgroundColor: '#eff6ff', 
+                    borderRadius: '8px', 
+                    border: '1px solid #bfdbfe' 
+                  }}>
+                    <div className="form-group" style={{ margin: 0 }}>
+                      <label className="form-label" style={{ fontWeight: 600, color: '#1e40af', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                        Cheque Number <span style={{ color: '#dc2626' }}>*</span>
+                      </label>
+                      <input 
+                        type="text" 
+                        name="cheque_no" 
+                        className="form-control" 
+                        required 
+                        value={chequeNo} 
+                        onChange={e => setChequeNo(e.target.value)} 
+                        placeholder="e.g. CHQ-102938" 
+                        style={{ borderColor: '#93c5fd', backgroundColor: '#ffffff' }}
+                      />
+                    </div>
+                    <div className="form-group" style={{ margin: 0 }}>
+                      <label className="form-label" style={{ fontWeight: 600, color: '#1e40af', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                        Cheque Date <span style={{ color: '#dc2626' }}>*</span>
+                      </label>
+                      <input 
+                        type="date" 
+                        name="cheque_date" 
+                        className="form-control" 
+                        required 
+                        value={chequeDate} 
+                        onChange={e => setChequeDate(e.target.value)} 
+                        style={{ borderColor: '#93c5fd', backgroundColor: '#ffffff' }}
+                      />
+                    </div>
+                  </div>
+                )}
+
                 {paymentMethod !== 'Cash' && (
                   <div style={{ 
                     marginBottom: '1rem', 
@@ -1153,7 +1256,20 @@ export default function Rent({ currentUser }) {
                       return (
                         <tr key={pmt.id}>
                           <td>{new Date(pmt.date).toLocaleDateString()}</td>
-                          <td>{pmt.receipt_no}</td>
+                          <td>
+                            {pmt.receipt_no}
+                            {(() => {
+                              const chq = getChequeDetailsFromRent(pmt);
+                              if (pmt.payment_method === 'Cheque' || chq.chequeNo) {
+                                return (
+                                  <span style={{ marginLeft: '6px', fontSize: '0.68rem', backgroundColor: '#eff6ff', color: '#1d4ed8', border: '1px solid #bfdbfe', padding: '1px 5px', borderRadius: '4px', fontWeight: 600 }}>
+                                    Cheque {chq.chequeNo ? `#${chq.chequeNo}` : ''}
+                                  </span>
+                                );
+                              }
+                              return null;
+                            })()}
+                          </td>
                           <td>Rs. {parseFloat(pmt.amount_paid || 0).toLocaleString()}</td>
                           <td style={{ color: pmt.fine_amount > 0 ? '#ef4444' : 'inherit' }}>
                             Rs. {parseFloat(pmt.fine_amount || 0).toLocaleString()}
@@ -1191,19 +1307,24 @@ export default function Rent({ currentUser }) {
                               )}
                               <button 
                                 className="icon-btn" 
-                                style={{ color: 'var(--color-primary)' }}
+                                style={{ color: 'var(--color-primary)' }} 
                                 title="Print Receipt"
-                                onClick={() => triggerPrint({
-                                  receipt_no: pmt.receipt_no,
-                                  date: pmt.date,
-                                  tenantName: getTenantDetails(selectedHistorySale.tenantId),
-                                  shopDetails: getShopDetails(selectedHistorySale.shopId),
-                                  month: selectedMonthString,
-                                  rentAmount: parseFloat(pmt.amount_paid || 0),
-                                  fineAmount: parseFloat(pmt.fine_amount || 0),
-                                  amount_paid: totalAmt,
-                                  payment_method: pmt.payment_method
-                                })}
+                                onClick={() => {
+                                  const chq = getChequeDetailsFromRent(pmt);
+                                  triggerPrint({
+                                    receipt_no: pmt.receipt_no,
+                                    date: pmt.date,
+                                    tenantName: getTenantDetails(selectedHistorySale.tenantId),
+                                    shopDetails: getShopDetails(selectedHistorySale.shopId),
+                                    month: selectedMonthString,
+                                    rentAmount: parseFloat(pmt.amount_paid || 0),
+                                    fineAmount: parseFloat(pmt.fine_amount || 0),
+                                    amount_paid: totalAmt,
+                                    payment_method: pmt.payment_method,
+                                    cheque_no: chq.chequeNo,
+                                    cheque_date: chq.chequeDate
+                                  });
+                                }}
                               >
                                 <Printer size={16} />
                               </button>

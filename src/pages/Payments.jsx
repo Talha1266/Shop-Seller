@@ -7,9 +7,27 @@ import { Plus, X, Printer, Edit, Lock, LockOpen, Search, Paperclip, Download } f
 import { useReactToPrint } from 'react-to-print';
 import { useProject } from '../contexts/ProjectContext';
 
+// Helper to extract cheque details from payment
+export const getChequeDetails = (payment) => {
+  if (!payment) return { chequeNo: '', chequeDate: '' };
+  let chqNo = payment.cheque_no || payment.chequeNo || '';
+  let chqDate = payment.cheque_date || payment.chequeDate || '';
+  if (!chqNo && payment.notes) {
+    const m = payment.notes.match(/Cheque\s*(?:#|No|Number)?:\s*([^,\]]+)/i);
+    if (m) chqNo = m[1].trim();
+  }
+  if (!chqDate && payment.notes) {
+    const m = payment.notes.match(/Cheque\s*Date:\s*([^,\]]+)/i) || payment.notes.match(/(?:Date):\s*([^,\]]+)/i);
+    if (m) chqDate = m[1].trim();
+  }
+  return { chequeNo: chqNo, chequeDate: chqDate };
+};
+
 // Receipt component for printing
 const ReceiptPrint = ({ payment, tenantShops, tenant, innerRef, projectName }) => {
   if (!payment) return <div ref={innerRef}></div>;
+  const chqInfo = getChequeDetails(payment);
+  const pmtMode = payment.payment_method || (payment.isAdvance ? 'Advance' : 'Cash');
   
   return (
     <div ref={innerRef} style={{ padding: '40px', fontFamily: 'system-ui, sans-serif', display: 'none' }} className="print-receipt-wrapper">
@@ -41,6 +59,13 @@ const ReceiptPrint = ({ payment, tenantShops, tenant, innerRef, projectName }) =
           <h3 style={{ marginTop: 0, borderBottom: '1px solid #ccc', paddingBottom: '10px' }}>Payment Details</h3>
           <p style={{ margin: '5px 0' }}><strong>Portfolio Details:</strong> {tenantShops?.map(s => `Shop ${s.shopNumber} (Block ${s.block}, Floor ${s.floor})`).join(', ')}</p>
           <p style={{ margin: '5px 0' }}><strong>Amount Paid:</strong> <span style={{ fontSize: '18px', fontWeight: 'bold' }}>Rs. {payment.amount.toLocaleString()}</span></p>
+          <p style={{ margin: '5px 0' }}><strong>Payment Mode:</strong> {pmtMode}</p>
+          {(payment.payment_method === 'Cheque' || chqInfo.chequeNo) && (
+            <>
+              {chqInfo.chequeNo && <p style={{ margin: '5px 0' }}><strong>Cheque Number:</strong> {chqInfo.chequeNo}</p>}
+              {chqInfo.chequeDate && <p style={{ margin: '5px 0' }}><strong>Cheque Date:</strong> {chqInfo.chequeDate}</p>}
+            </>
+          )}
         </div>
         
         <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '60px' }}>
@@ -197,7 +222,16 @@ const AllPaymentsReportPrint = ({
                     )}
                   </td>
                   <td style={{ padding: '6px 8px', textAlign: 'center', borderRight: '1px solid #e2e8f0' }}>
-                    {pmtMethod}
+                    <span style={{ fontWeight: 600 }}>{pmtMethod}</span>
+                    {(() => {
+                      const chq = getChequeDetails(payment);
+                      if (!chq.chequeNo) return null;
+                      return (
+                        <span style={{ display: 'block', fontSize: '9px', color: '#1e40af', marginTop: '2px', fontWeight: 500 }}>
+                          #{chq.chequeNo} {chq.chequeDate ? `(${chq.chequeDate})` : ''}
+                        </span>
+                      );
+                    })()}
                   </td>
                   <td style={{ padding: '6px 8px', textAlign: 'right', fontWeight: 700, color: '#0f766e' }}>
                     Rs. {Number(payment.amount || 0).toLocaleString()}
@@ -248,6 +282,8 @@ export default function Payments({ currentUser }) {
   const [preSelectedTenantId, setPreSelectedTenantId] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [paymentMethod, setPaymentMethod] = useState('Cash');
+  const [chequeNo, setChequeNo] = useState('');
+  const [chequeDate, setChequeDate] = useState('');
   const [attachmentFile, setAttachmentFile] = useState(null);
   const [attachmentPreview, setAttachmentPreview] = useState(null);
   const [isUploadingAttachment, setIsUploadingAttachment] = useState(false);
@@ -370,6 +406,17 @@ export default function Payments({ currentUser }) {
     const formData = new FormData(e.target);
     const tenantId = formData.get('tenantId');
 
+    if (paymentMethod === 'Cheque') {
+      if (!chequeNo || !chequeNo.trim()) {
+        alert('Cheque Number is compulsory for Cheque payments.');
+        return;
+      }
+      if (!chequeDate) {
+        alert('Cheque Date is compulsory for Cheque payments.');
+        return;
+      }
+    }
+
     let uploadedPath = null;
     if (attachmentFile) {
       setIsUploadingAttachment(true);
@@ -394,26 +441,37 @@ export default function Payments({ currentUser }) {
       }
     }
 
+    const chequeNotes = paymentMethod === 'Cheque' ? `[Cheque #: ${chequeNo.trim()}, Date: ${chequeDate}]` : '';
+    const fullNotes = [chequeNotes, uploadedPath ? `[Attachment: ${uploadedPath}]` : ''].filter(Boolean).join(' ');
+
     const newPayment = {
       tenantId: tenantId,
       date: formData.get('date'),
       amount: parseFloat(formData.get('amount')),
       receiptNo: formData.get('receiptNo') || generateReceiptNo(),
       payment_method: paymentMethod,
+      cheque_no: paymentMethod === 'Cheque' ? chequeNo.trim() : null,
+      cheque_date: paymentMethod === 'Cheque' ? chequeDate : null,
       attachment_url: uploadedPath,
-      notes: uploadedPath ? `[Attachment: ${uploadedPath}]` : ''
+      notes: fullNotes
     };
     
     try {
       await db.payments.add(newPayment);
     } catch (insertErr) {
-      if (insertErr.message && (insertErr.message.includes('payment_method') || insertErr.message.includes('attachment_url') || insertErr.code === '42703')) {
+      if (insertErr.message && (
+        insertErr.message.includes('payment_method') || 
+        insertErr.message.includes('cheque_no') || 
+        insertErr.message.includes('cheque_date') || 
+        insertErr.message.includes('attachment_url') || 
+        insertErr.code === '42703'
+      )) {
         const fallbackPayment = {
           tenantId: tenantId,
           date: formData.get('date'),
           amount: parseFloat(formData.get('amount')),
           receiptNo: formData.get('receiptNo') || generateReceiptNo(),
-          notes: `[Method: ${paymentMethod}] ${uploadedPath ? `[Attachment: ${uploadedPath}]` : ''}`
+          notes: `[Method: ${paymentMethod}] ${fullNotes}`.trim()
         };
         await db.payments.add(fallbackPayment);
       } else {
@@ -423,6 +481,9 @@ export default function Payments({ currentUser }) {
 
     setAttachmentFile(null);
     setAttachmentPreview(null);
+    setChequeNo('');
+    setChequeDate('');
+    setPaymentMethod('Cash');
     setIsModalOpen(false);
   };
 
@@ -594,6 +655,17 @@ export default function Payments({ currentUser }) {
                       <td style={{ fontWeight: 500 }}>
                         {payment.receiptNo}
                         {payment.isAdvance && <span style={{ marginLeft: '8px', fontSize: '0.65rem', backgroundColor: '#eef2ff', color: '#4f46e5', padding: '2px 6px', borderRadius: '12px' }}>Registration</span>}
+                        {(() => {
+                          const chq = getChequeDetails(payment);
+                          if (payment.payment_method === 'Cheque' || chq.chequeNo) {
+                            return (
+                              <span style={{ marginLeft: '6px', fontSize: '0.7rem', backgroundColor: '#eff6ff', color: '#1d4ed8', border: '1px solid #bfdbfe', padding: '1px 6px', borderRadius: '4px', fontWeight: 600 }}>
+                                Cheque {chq.chequeNo ? `#${chq.chequeNo}` : ''}
+                              </span>
+                            );
+                          }
+                          return null;
+                        })()}
                       </td>
                       <td>{new Date(payment.date).toLocaleDateString()}</td>
                       <td>{details?.tenant?.name || 'N/A'}</td>
@@ -672,6 +744,49 @@ export default function Payments({ currentUser }) {
                   <option value="Bank Transfer">Bank Transfer</option>
                 </select>
               </div>
+
+              {paymentMethod === 'Cheque' && (
+                <div style={{ 
+                  display: 'grid', 
+                  gridTemplateColumns: '1fr 1fr', 
+                  gap: '0.75rem', 
+                  marginBottom: '1rem', 
+                  padding: '0.85rem', 
+                  backgroundColor: '#eff6ff', 
+                  borderRadius: '8px', 
+                  border: '1px solid #bfdbfe' 
+                }}>
+                  <div className="form-group" style={{ margin: 0 }}>
+                    <label className="form-label" style={{ fontWeight: 600, color: '#1e40af', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      Cheque Number <span style={{ color: '#dc2626' }}>*</span>
+                    </label>
+                    <input 
+                      type="text" 
+                      name="cheque_no" 
+                      className="form-control" 
+                      required 
+                      value={chequeNo} 
+                      onChange={e => setChequeNo(e.target.value)} 
+                      placeholder="e.g. CHQ-987654" 
+                      style={{ borderColor: '#93c5fd', backgroundColor: '#ffffff' }}
+                    />
+                  </div>
+                  <div className="form-group" style={{ margin: 0 }}>
+                    <label className="form-label" style={{ fontWeight: 600, color: '#1e40af', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      Cheque Date <span style={{ color: '#dc2626' }}>*</span>
+                    </label>
+                    <input 
+                      type="date" 
+                      name="cheque_date" 
+                      className="form-control" 
+                      required 
+                      value={chequeDate} 
+                      onChange={e => setChequeDate(e.target.value)} 
+                      style={{ borderColor: '#93c5fd', backgroundColor: '#ffffff' }}
+                    />
+                  </div>
+                </div>
+              )}
 
               {paymentMethod !== 'Cash' && (
                 <div style={{ 
