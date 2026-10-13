@@ -56,6 +56,186 @@ const ReceiptPrint = ({ payment, tenantShops, tenant, innerRef, projectName }) =
   );
 };
 
+const AllPaymentsReportPrint = ({
+  paymentsList,
+  innerRef,
+  projectName,
+  appSettings,
+  searchQuery,
+  getPaymentDetails,
+}) => {
+  const [logoUrl, setLogoUrl] = useState('');
+
+  useEffect(() => {
+    if (appSettings?.watermark_url) {
+      supabase.storage
+        .from('tenant-documents')
+        .createSignedUrl(appSettings.watermark_url, 3600)
+        .then(({ data }) => {
+          if (data) setLogoUrl(data.signedUrl);
+        });
+    }
+  }, [appSettings?.watermark_url]);
+
+  if (!paymentsList) return <div ref={innerRef}></div>;
+
+  const totalAmount = paymentsList.reduce((sum, p) => sum + parseFloat(p.amount || 0), 0);
+
+  const formattedDate = new Date().toLocaleDateString('en-GB', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+  });
+  const formattedTime = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+  return (
+    <div ref={innerRef} className="print-all-payments-wrapper" style={{ display: 'none', padding: '24px', fontFamily: 'system-ui, -apple-system, Segoe UI, Roboto, sans-serif', color: '#0f172a' }}>
+      <style type="text/css" media="print">
+        {`
+          @page { size: landscape; margin: 10mm; }
+          .print-all-payments-wrapper { display: block !important; }
+          body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+          table { page-break-inside: auto; }
+          tr { page-break-inside: avoid; page-break-after: auto; }
+          thead { display: table-header-group; }
+          tfoot { display: table-footer-group; }
+        `}
+      </style>
+
+      {/* Header */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '2px solid #0f172a', paddingBottom: '16px', marginBottom: '16px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+          {logoUrl && (
+            <img
+              src={logoUrl}
+              alt="Logo"
+              style={{ maxHeight: '70px', maxWidth: '100px', objectFit: 'contain', mixBlendMode: 'multiply' }}
+            />
+          )}
+          <div>
+            <h1 style={{ margin: 0, fontSize: '22px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+              {projectName || 'Plaza Management'}
+            </h1>
+            <h2 style={{ margin: '4px 0 0 0', fontSize: '15px', fontWeight: 600, color: '#334155', letterSpacing: '0.25px' }}>
+              ALL SHOPS PAYMENT & INSTALLMENTS COLLECTION REPORT
+            </h2>
+            {searchQuery && (
+              <p style={{ margin: '2px 0 0 0', fontSize: '11px', color: '#64748b' }}>
+                Filtered by: "{searchQuery}"
+              </p>
+            )}
+          </div>
+        </div>
+
+        <div style={{ textAlign: 'right', fontSize: '11px', color: '#475569' }}>
+          <p style={{ margin: 0 }}><strong>Generated:</strong> {formattedDate} {formattedTime}</p>
+          <p style={{ margin: '2px 0 0 0' }}><strong>Total Transactions:</strong> {paymentsList.length}</p>
+          <p style={{ margin: '2px 0 0 0' }}><strong>Total Collected:</strong> Rs. {totalAmount.toLocaleString()}</p>
+        </div>
+      </div>
+
+      {/* Table */}
+      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '11px', lineHeight: 1.4 }}>
+        <thead>
+          <tr style={{ backgroundColor: '#f1f5f9', borderTop: '1px solid #cbd5e1', borderBottom: '2px solid #0f172a' }}>
+            <th style={{ padding: '8px 6px', textAlign: 'center', width: '35px', fontWeight: 700, borderRight: '1px solid #cbd5e1' }}>#</th>
+            <th style={{ padding: '8px 8px', textAlign: 'center', width: '130px', fontWeight: 700, borderRight: '1px solid #cbd5e1' }}>Receipt No.</th>
+            <th style={{ padding: '8px 8px', textAlign: 'center', width: '95px', fontWeight: 700, borderRight: '1px solid #cbd5e1' }}>Date</th>
+            <th style={{ padding: '8px 8px', textAlign: 'left', fontWeight: 700, borderRight: '1px solid #cbd5e1' }}>Shop Details</th>
+            <th style={{ padding: '8px 8px', textAlign: 'left', fontWeight: 700, borderRight: '1px solid #cbd5e1' }}>Tenant Name</th>
+            <th style={{ padding: '8px 8px', textAlign: 'center', width: '110px', fontWeight: 700, borderRight: '1px solid #cbd5e1' }}>Payment Mode</th>
+            <th style={{ padding: '8px 8px', textAlign: 'right', width: '140px', fontWeight: 700 }}>Amount Paid</th>
+          </tr>
+        </thead>
+        <tbody>
+          {paymentsList.length === 0 ? (
+            <tr>
+              <td colSpan="7" style={{ textAlign: 'center', padding: '24px', color: '#64748b' }}>
+                No payment records found.
+              </td>
+            </tr>
+          ) : (
+            paymentsList.map((payment, idx) => {
+              const details = getPaymentDetails(payment);
+              const shopText = details?.tenantShops && details.tenantShops.length > 0
+                ? details.tenantShops.map(s => `Shop ${s.shopNumber} (${s.block}, ${s.floor})`).join(', ')
+                : 'N/A';
+              const pmtDate = payment.date ? new Date(payment.date).toLocaleDateString('en-GB') : '—';
+              const pmtMethod = payment.payment_method || (payment.isAdvance ? 'Advance' : 'Cash');
+
+              return (
+                <tr
+                  key={payment.id}
+                  style={{
+                    backgroundColor: idx % 2 === 0 ? '#ffffff' : '#f8fafc',
+                    borderBottom: '1px solid #e2e8f0',
+                  }}
+                >
+                  <td style={{ padding: '6px', textAlign: 'center', borderRight: '1px solid #e2e8f0', color: '#64748b' }}>
+                    {idx + 1}
+                  </td>
+                  <td style={{ padding: '6px 8px', textAlign: 'center', fontFamily: 'monospace', fontWeight: 600, borderRight: '1px solid #e2e8f0' }}>
+                    {payment.receiptNo}
+                    {payment.isAdvance && (
+                      <span style={{ display: 'block', fontSize: '9px', color: '#4f46e5', fontWeight: 700 }}>
+                        [Registration]
+                      </span>
+                    )}
+                  </td>
+                  <td style={{ padding: '6px 8px', textAlign: 'center', borderRight: '1px solid #e2e8f0' }}>
+                    {pmtDate}
+                  </td>
+                  <td style={{ padding: '6px 8px', fontWeight: 500, borderRight: '1px solid #e2e8f0' }}>
+                    {shopText}
+                  </td>
+                  <td style={{ padding: '6px 8px', borderRight: '1px solid #e2e8f0' }}>
+                    <strong>{details?.tenant?.name || 'N/A'}</strong>
+                    {details?.tenant?.mobile && (
+                      <span style={{ display: 'block', fontSize: '10px', color: '#64748b' }}>
+                        {details.tenant.mobile}
+                      </span>
+                    )}
+                  </td>
+                  <td style={{ padding: '6px 8px', textAlign: 'center', borderRight: '1px solid #e2e8f0' }}>
+                    {pmtMethod}
+                  </td>
+                  <td style={{ padding: '6px 8px', textAlign: 'right', fontWeight: 700, color: '#0f766e' }}>
+                    Rs. {Number(payment.amount || 0).toLocaleString()}
+                  </td>
+                </tr>
+              );
+            })
+          )}
+        </tbody>
+        {paymentsList.length > 0 && (
+          <tfoot>
+            <tr style={{ backgroundColor: '#f1f5f9', borderTop: '2px solid #0f172a', borderBottom: '2px solid #0f172a', fontWeight: 700 }}>
+              <td colSpan="6" style={{ padding: '8px', textAlign: 'left', borderRight: '1px solid #cbd5e1' }}>
+                TOTAL AMOUNT COLLECTED ({paymentsList.length} {paymentsList.length === 1 ? 'TRANSACTION' : 'TRANSACTIONS'})
+              </td>
+              <td style={{ padding: '8px', textAlign: 'right', color: '#0f766e', fontSize: '12px' }}>
+                Rs. {totalAmount.toLocaleString()}
+              </td>
+            </tr>
+          </tfoot>
+        )}
+      </table>
+
+      {/* Signature Section */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '40px', paddingTop: '20px', pageBreakInside: 'avoid', fontSize: '11px', color: '#334155' }}>
+        <div style={{ textAlign: 'center', width: '200px' }}>
+          <div style={{ borderTop: '1px solid #0f172a', paddingTop: '6px', fontWeight: 600 }}>Prepared By</div>
+        </div>
+        <div style={{ textAlign: 'center', width: '200px' }}>
+          <div style={{ borderTop: '1px solid #0f172a', paddingTop: '6px', fontWeight: 600 }}>Checked / Verified By</div>
+        </div>
+        <div style={{ textAlign: 'center', width: '220px' }}>
+          <div style={{ borderTop: '1px solid #0f172a', paddingTop: '6px', fontWeight: 600 }}>Authorized Signature & Stamp</div>
+        </div>
+      </div>
+    </div>
+  );
+};
 
 export default function Payments({ currentUser }) {
   const db = useDb();
@@ -156,14 +336,22 @@ export default function Payments({ currentUser }) {
     }
   }, [location]);
   const printRef = useRef(null);
+  const printAllPaymentsRef = useRef(null);
 
   const payments = useSupabase('payments') || [];
   const sales = useSupabase('sales') || [];
   const shops = useSupabase('shops') || [];
   const tenants = useSupabase('tenants') || [];
+  const appSettingsList = useSupabase('app_settings') || [];
+  const appSettings = appSettingsList.length > 0 ? appSettingsList[0] : null;
 
   const handlePrint = useReactToPrint({
     contentRef: printRef,
+  });
+
+  const handlePrintAllPayments = useReactToPrint({
+    contentRef: printAllPaymentsRef,
+    documentTitle: `${activeProject?.name || 'Plaza'}_All_Shops_Payment_Report`,
   });
 
   const triggerPrint = (paymentId) => {
@@ -311,6 +499,10 @@ export default function Payments({ currentUser }) {
     return tenantName.includes(q) || receipt.includes(q);
   });
 
+  const sortedPayments = useMemo(() => {
+    return [...filteredPayments].sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0));
+  }, [filteredPayments]);
+
   const activeSales = sales.filter(s => !s.isCompleted && occupiedShopIds.has(s.shopId));
   const activeTenants = Array.from(new Set(activeSales.map(s => s.tenantId)))
     .map(tId => tenants.find(t => t.id === tId))
@@ -332,9 +524,18 @@ export default function Payments({ currentUser }) {
         projectName={activeProject?.name}
       />
 
-      <div className="page-header" style={{ display: 'flex', flexWrap: 'wrap', gap: '1rem', justifyContent: 'space-between' }}>
+      <AllPaymentsReportPrint
+        paymentsList={sortedPayments}
+        innerRef={printAllPaymentsRef}
+        projectName={activeProject?.name}
+        appSettings={appSettings}
+        searchQuery={searchQuery}
+        getPaymentDetails={getPaymentDetails}
+      />
+
+      <div className="page-header" style={{ display: 'flex', flexWrap: 'wrap', gap: '1rem', justifyContent: 'space-between', alignItems: 'center' }}>
         <h1 className="page-title">Installment Payments</h1>
-        <div style={{ display: 'flex', gap: '1rem', alignItems: 'center', flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', flexWrap: 'wrap' }}>
           <div style={{ position: 'relative' }}>
             <Search size={18} style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: 'var(--color-text-muted)' }} />
             <input 
@@ -343,9 +544,17 @@ export default function Payments({ currentUser }) {
               placeholder="Search tenant or receipt..." 
               value={searchQuery}
               onChange={e => setSearchQuery(e.target.value)}
-              style={{ paddingLeft: '35px', minWidth: '250px' }}
+              style={{ paddingLeft: '35px', minWidth: '220px' }}
             />
           </div>
+          <button 
+            className="btn btn-secondary" 
+            onClick={handlePrintAllPayments}
+            style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}
+            title="Print All Shops Payment & Collection Report"
+          >
+            <Printer size={18} /> Print Payments Report
+          </button>
           {currentUser?.isAdmin && (
             <button 
               className={`btn ${isUnlocked ? 'btn-secondary' : 'btn-primary'}`} 
@@ -375,10 +584,10 @@ export default function Payments({ currentUser }) {
               </tr>
             </thead>
             <tbody>
-              {filteredPayments.length === 0 ? (
+              {sortedPayments.length === 0 ? (
                 <tr><td colSpan="6" style={{ textAlign: 'center', padding: '2rem', color: 'var(--color-text-muted)' }}>No payments recorded yet.</td></tr>
               ) : (
-                filteredPayments.map(payment => {
+                sortedPayments.map(payment => {
                   const details = getPaymentDetails(payment);
                   return (
                     <tr key={payment.id}>
