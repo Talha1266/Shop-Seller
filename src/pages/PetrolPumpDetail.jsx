@@ -302,7 +302,7 @@ const PetrolPumpCollectionsReportPrint = ({
           table { page-break-inside: auto; }
           tr { page-break-inside: avoid; page-break-after: auto; }
           thead { display: table-header-group; }
-          tfoot { display: table-footer-group; }
+          tfoot { display: table-row-group; page-break-inside: avoid; }
         `}
       </style>
 
@@ -430,10 +430,8 @@ const PetrolPumpCollectionsReportPrint = ({
               );
             })
           )}
-        </tbody>
-        {(pumpCollections || []).length > 0 && (
-          <tfoot>
-            <tr style={{ backgroundColor: '#f1f5f9', borderTop: '2px solid #0f172a', borderBottom: '2px solid #0f172a', fontWeight: 700 }}>
+          {(pumpCollections || []).length > 0 && (
+            <tr style={{ backgroundColor: '#f1f5f9', borderTop: '2px solid #0f172a', borderBottom: '2px solid #0f172a', fontWeight: 700, pageBreakInside: 'avoid' }}>
               <td colSpan="5" style={{ padding: '8px', textAlign: 'left', borderRight: '1px solid #cbd5e1' }}>
                 GRAND TOTAL AMOUNT COLLECTED ({pumpCollections.length} TRANSACTIONS)
               </td>
@@ -444,8 +442,8 @@ const PetrolPumpCollectionsReportPrint = ({
                 POLICE WELFARE LEASE RECORD
               </td>
             </tr>
-          </tfoot>
-        )}
+          )}
+        </tbody>
       </table>
 
       {/* Signature Section */}
@@ -500,7 +498,7 @@ const PetrolPumpScheduleReportPrint = ({
           table { page-break-inside: auto; }
           tr { page-break-inside: avoid; page-break-after: auto; }
           thead { display: table-header-group; }
-          tfoot { display: table-footer-group; }
+          tfoot { display: table-row-group; page-break-inside: avoid; }
         `}
       </style>
 
@@ -617,9 +615,7 @@ const PetrolPumpScheduleReportPrint = ({
               </td>
             </tr>
           ))}
-        </tbody>
-        <tfoot>
-          <tr style={{ backgroundColor: '#f1f5f9', borderTop: '2px solid #0f172a', borderBottom: '2px solid #0f172a', fontWeight: 700 }}>
+          <tr style={{ backgroundColor: '#f1f5f9', borderTop: '2px solid #0f172a', borderBottom: '2px solid #0f172a', fontWeight: 700, pageBreakInside: 'avoid' }}>
             <td colSpan="3" style={{ padding: '8px', textAlign: 'left', borderRight: '1px solid #cbd5e1' }}>
               TOTAL PROJECTED LEASE VALUE ({escalationSchedule.length} YEARS)
             </td>
@@ -630,7 +626,7 @@ const PetrolPumpScheduleReportPrint = ({
               POLICE WELFARE PETROL PUMP
             </td>
           </tr>
-        </tfoot>
+        </tbody>
       </table>
 
       {/* Signature Section */}

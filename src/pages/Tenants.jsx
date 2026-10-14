@@ -144,7 +144,7 @@ const TenantsListPrint = ({
           table { page-break-inside: auto; }
           tr { page-break-inside: avoid; page-break-after: auto; }
           thead { display: table-header-group; }
-          tfoot { display: table-footer-group; }
+          tfoot { display: table-row-group; page-break-inside: avoid; }
         `}
       </style>
 
@@ -246,10 +246,8 @@ const TenantsListPrint = ({
               </tr>
             ))
           )}
-        </tbody>
-        {tenantRows.length > 0 && (
-          <tfoot>
-            <tr style={{ backgroundColor: '#f1f5f9', borderTop: '2px solid #0f172a', borderBottom: '2px solid #0f172a', fontWeight: 700 }}>
+          {tenantRows.length > 0 && (
+            <tr style={{ backgroundColor: '#f1f5f9', borderTop: '2px solid #0f172a', borderBottom: '2px solid #0f172a', fontWeight: 700, pageBreakInside: 'avoid' }}>
               <td colSpan="5" style={{ padding: '8px', textAlign: 'left', borderRight: '1px solid #cbd5e1' }}>
                 TOTALS ({tenantRows.length} {tenantRows.length === 1 ? 'TENANT' : 'TENANTS'})
               </td>
@@ -266,8 +264,8 @@ const TenantsListPrint = ({
                 Rs. {grandBalance.toLocaleString()}
               </td>
             </tr>
-          </tfoot>
-        )}
+          )}
+        </tbody>
       </table>
 
       {/* Signature Section */}

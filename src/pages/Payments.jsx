@@ -124,7 +124,7 @@ const AllPaymentsReportPrint = ({
           table { page-break-inside: auto; }
           tr { page-break-inside: avoid; page-break-after: auto; }
           thead { display: table-header-group; }
-          tfoot { display: table-footer-group; }
+          tfoot { display: table-row-group; page-break-inside: avoid; }
         `}
       </style>
 
@@ -241,10 +241,8 @@ const AllPaymentsReportPrint = ({
               );
             })
           )}
-        </tbody>
-        {paymentsList.length > 0 && (
-          <tfoot>
-            <tr style={{ backgroundColor: '#f1f5f9', borderTop: '2px solid #0f172a', borderBottom: '2px solid #0f172a', fontWeight: 700 }}>
+          {paymentsList.length > 0 && (
+            <tr style={{ backgroundColor: '#f1f5f9', borderTop: '2px solid #0f172a', borderBottom: '2px solid #0f172a', fontWeight: 700, pageBreakInside: 'avoid' }}>
               <td colSpan="6" style={{ padding: '8px', textAlign: 'left', borderRight: '1px solid #cbd5e1' }}>
                 TOTAL AMOUNT COLLECTED ({paymentsList.length} {paymentsList.length === 1 ? 'TRANSACTION' : 'TRANSACTIONS'})
               </td>
@@ -252,8 +250,8 @@ const AllPaymentsReportPrint = ({
                 Rs. {totalAmount.toLocaleString()}
               </td>
             </tr>
-          </tfoot>
-        )}
+          )}
+        </tbody>
       </table>
 
       {/* Signature Section */}

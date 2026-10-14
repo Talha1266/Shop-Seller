@@ -112,7 +112,7 @@ const AllShopsPaymentReportPrint = ({
           table { page-break-inside: auto; }
           tr { page-break-inside: avoid; page-break-after: auto; }
           thead { display: table-header-group; }
-          tfoot { display: table-footer-group; }
+          tfoot { display: table-row-group; page-break-inside: avoid; }
         `}
       </style>
 
@@ -236,9 +236,8 @@ const AllShopsPaymentReportPrint = ({
               </td>
             </tr>
           ))}
-        </tbody>
-        <tfoot>
-          <tr style={{ backgroundColor: '#f1f5f9', borderTop: '2px solid #0f172a', borderBottom: '2px solid #0f172a', fontWeight: 700 }}>
+          {/* Grand Totals - Rendered only at the end of the table on the last page */}
+          <tr style={{ backgroundColor: '#f1f5f9', borderTop: '2px solid #0f172a', borderBottom: '2px solid #0f172a', fontWeight: 700, pageBreakInside: 'avoid' }}>
             <td colSpan="8" style={{ padding: '8px', textAlign: 'left', borderRight: '1px solid #cbd5e1' }}>
               GRAND TOTALS ({shopRows.length} SHOPS: {occupiedCount} OCCUPIED, {availableCount} AVAILABLE)
             </td>
@@ -258,7 +257,7 @@ const AllShopsPaymentReportPrint = ({
               Rs. {grandTotalRent.toLocaleString()}
             </td>
           </tr>
-        </tfoot>
+        </tbody>
       </table>
 
       {/* Signature Section */}
